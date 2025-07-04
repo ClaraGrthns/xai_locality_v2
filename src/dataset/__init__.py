@@ -1,0 +1,1 @@
+from .imgnet import ImageNetDataset  # Allows direct import from dataset

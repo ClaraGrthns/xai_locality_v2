@@ -1,0 +1,18 @@
+# Analysis parameters
+analysis:
+  distance_measure: "euclidean"
+  max_frac: 1.0
+  num_frac: 50
+  random_seed: 42
+  chunk_size: 200
+
+# LIME-specific parameters
+lime:
+  kernel_width: null
+  model_regressor: "ridge"
+  num_features: 10
+
+# Other parameters
+other:
+  predict_threshold: null
+  max_test_points: 200
