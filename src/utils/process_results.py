@@ -498,14 +498,14 @@ def get_results_files_dict(explanation_method: str,
             else:
                 if explanation_method == "lime":
                     if isinstance(lime_features, int) and lime_features != 10:
-                        condition = lambda x: x.startswith("fractions") and f"num_features-{lime_features}.npz" in x
+                        condition = lambda x: x.startswith("kNN") and f"num_features-{lime_features}.npz" in x
                     elif lime_features == "all":
                         num_feat = DATASET_TO_NUM_FEATURES[dataset]
-                        condition = lambda x: (x.startswith("fractions") or x.startswith("regression")) and f"num_features-{num_feat}.npz" in x
+                        condition = lambda x: (x.startswith("kNN") or x.startswith("regression")) and f"num_features-{num_feat}.npz" in x
                     else:
-                        condition = lambda x: (x.startswith("fractions") or x.startswith("regression")) and x.endswith("fraction.npz")
+                        condition = lambda x: (x.startswith("kNN") or x.startswith("regression")) and x.endswith("fraction.npz")
                 else:
-                    condition = lambda x: (x.startswith("fractions") or x.startswith("regression")) and x.endswith("fraction.npz")
+                    condition = lambda x: (x.startswith("kNN") or x.startswith("regression")) and x.endswith("fraction.npz")
                 
             def random_seed_condition(file):
                 if type(random_seed) == int:
