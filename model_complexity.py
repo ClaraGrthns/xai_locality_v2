@@ -118,33 +118,6 @@ def run_classification_analysis(args, X_trn, X_tst, ys_trn_preds, y_tst_preds, y
                 ys_tst_predicted_labels, classifier_preds, None)
             res_classification[i] = [accuracy, precision, recall, f1]
             
-            # # Regression on probabilities
-            # regressors, regressor_preds = train_knn_regressors(
-            #     X_trn, ys_trn_softmaxed, X_tst, k_neighbors, distance_measure)
-            
-            # if regressor_preds.ndim > 1:
-            #     regressor_preds_top_label = regressor_preds[
-            #         np.arange(len(ys_tst_predicted_labels)), ys_tst_predicted_labels]
-            # else:
-            #     regressor_preds_top_label = regressor_preds
-                
-            # mse, mae, r2 = regression_metrics(y_tst_proba_top_label.flatten(), regressor_preds_top_label.flatten())   
-            # res_proba_regression[i] = [mse, mae, r2]
-            
-            # # Regression on logits (if not using probability output)
-            # if not proba_output:
-            #     regressors, regressor_logit = train_knn_regressors(
-            #         X_trn, ys_trn_preds, X_tst, k_neighbors, distance_measure)
-                
-            #     if regressor_logit.ndim == 1:
-            #         regressor_logit_top_label = regressor_logit
-            #     else:
-            #         regressor_logit_top_label = regressor_logit[
-            #             np.arange(len(ys_tst_predicted_labels)), ys_tst_predicted_labels]
-                
-            #     mse, mae, r2 = regression_metrics(y_tst_logit_top_label.flatten(), regressor_logit_top_label.flatten())   
-            #     res_logit_regression[i] = [mse, mae, r2]
-        
             # Classification on true labels
             classifier = KNeighborsClassifier(n_neighbors=k_neighbors, metric=distance_measure)
             classifier.fit(X_trn, y_trn)
@@ -359,15 +332,6 @@ def main(args):
     print(f"Processing with distance measures: {distance_measures}")
     
     if args.regression:
-        # if not args.use_benchmark:
-        #     col_indices = model_handler.get_col_indices_informative_features()
-        #     original_inf_idx = np.arange(args.n_informative)
-        #     shuffled_positions = {orig_idx: np.where(col_indices == orig_idx)[0][0] 
-        #                 for orig_idx in original_inf_idx}
-        #     indices_informative_shuffled = [shuffled_positions[orig_idx] for orig_idx in original_inf_idx]
-        #     X_trn = X_trn[:, indices_informative_shuffled]
-        #     X_tst = X_tst[:, indices_informative_shuffled]
-
         run_regression_analysis(
             args, X_trn, X_tst, ys_trn_preds, y_tst_preds, y_trn, y_tst,
             k_nns, results_path, file_name_wo_file_ending, distance_measures

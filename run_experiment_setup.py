@@ -9,6 +9,7 @@ import numpy as np
 from src.train.custom_data_frame_benchmark import main_deep_models, main_gbdt
 from estimate_local_fidelity import main as main_knn_vs_accuracy
 from model_complexity import main as main_knn_analyzer
+from model_complexity_tree_depth import main as main_model_complexity_tree_depth
 from src.dataset.synthetic_data import get_setting_name_classification, get_setting_name_regression
 from src.utils.misc import set_random_seeds
 
@@ -26,7 +27,6 @@ def parse_args():
     # Basic configuration
     parser.add_argument("--random_seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--random_seed_synthetic_data", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument("--downsample_analysis", action="store_true", help="Enable downsampling for analysis")    
     parser.add_argument("--create_additional_analysis_data", action="store_true", help="Create additional analysis data")    
     parser.add_argument("--data_folder", type=str,  
                         help="Path to the data folder")
@@ -105,7 +105,7 @@ def parse_args():
     parser.add_argument("--force_overwrite", action="store_true", help="Force overwrite existing results")
     
     # Explanation method parameters
-    parser.add_argument("--method", type=str, choices=["lime", "gradient_methods", "lime_captum"], 
+    parser.add_argument("--method", type=str, choices=["lime", "gradient_methods", "lime_captum", "shap"], 
                         help="Explanation method to use")
     parser.add_argument("--gradient_method", type=str,
                         choices=["IG", "IG+SmoothGrad", "GuidedBackprob", "Deconv", "GuidedGradCam", "Saliency"], 
@@ -197,8 +197,15 @@ def get_results_path(args, step):
     else:
         sub_directory = "synthetic_data"
     if step == "knn":
-        return osp.join(args.results_folder, 
+        results_folder = "/home/grotehans/xai_locality/results" # TODO: Change this to args.results_folder
+        return osp.join(results_folder, 
                         "knn_model_preds", 
+                        args.model_type, 
+                        sub_directory, 
+                        args.setting)
+    elif step == "complexity":
+        return osp.join(args.results_folder,
+                        "model_complexity", 
                         args.model_type, 
                         sub_directory, 
                         args.setting)
@@ -265,6 +272,12 @@ def run_knn_analysis(args):
     knn_args.results_path = get_results_path(args, "knn")
     main_knn_analyzer(knn_args)
 
+def run_model_complexity_tree_depth(args):
+    print("Running model complexity analysis on tree depth...")
+    complexity_args = copy.deepcopy(args)
+    complexity_args.results_path = get_results_path(args, "complexity")
+    main_model_complexity_tree_depth(complexity_args)
+
 def run_knn_vs_local_model_analysis(args):
     """Run fraction vs accuracy analysis."""
     print("Running fraction vs accuracy analysis...")
@@ -283,21 +296,21 @@ def main():
     args.force_overwrite = True #TODO: Delete
     args.use_custom_generator = True  # Default to using custom generator in debug mode
     args.include_trn = False
-    
+    args.data_folder = "/home/grotehans/xai_locality/data" #TODO: Change this to your data directory
     if args.debug:
         args.model_type = "LightGBM"
-        args.setting = "higgs"
-        args.use_benchmark = True
-        args.method = "lime"
+        args.setting = "jannis"
+        args.method = "shap"
         args.distance_measure = "euclidean"
-        args.regression = False
-        args.force = True
-        args.random_seed = 42
-        args.epochs = 30
-        args.num_trials = 5
+        args.random_seed = 999
+        args.skip_knn = True
+        args.scale = "medium"
+        args.use_benchmark = True
+        args.task_type = "binary_classification"
         args.num_repeats = 1
-        args.kernel_width = "default"
-        args.num_lime_features = 10
+        args.epochs = 25
+        args.include_val = True
+        args.num_trials = 5
 
     if args.force_training:
         args.force_overwrite = True
@@ -324,10 +337,6 @@ def main():
 
     print(args)
 
-    if args.downsample_analysis:
-        downsample_analysis_fractions = np.linspace(0.2, 1.0, 10)
-    else:
-        downsample_analysis_fractions = [1]
     
     if (not model_exists or args.force_training) and not args.skip_training:
         print("Starting with model training...")
@@ -348,9 +357,7 @@ def main():
     if not args.skip_fraction:
         print("Starting fraction vs accuracy analysis...")
         start_time = time.time()
-        for fraction in downsample_analysis_fractions:
-            args.downsample_analysis = fraction
-            run_knn_vs_local_model_analysis(args)
+        run_knn_vs_local_model_analysis(args)
         print(f"Fraction vs accuracy analysis completed in {(time.time() - start_time):.2f} seconds.")
     print("Experiment complete!")
 
