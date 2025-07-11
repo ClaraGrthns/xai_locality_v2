@@ -22,10 +22,13 @@ def determine_resources(script_content):
             if model in script_content:
                 resources["time"] = "5:00:00" if "higgs" in script_content else "4:00:00"
                 break
+    if "LightGBM" in script_content:
+        resources["gres"] = "gpu:0"
+        resources["time"] = "2:00:00"
 
     
     # Check for lightweight models
-    lightweight_models = ["LogReg", "MLP", "LightGBM"]
+    lightweight_models = ["LogReg", "LinReg", "MLP", "LightGBM"]
     for model in lightweight_models:
         if model in script_content:
             resources["partition"] = "day"
@@ -40,49 +43,6 @@ def determine_resources(script_content):
     return resources
 
 def extract_job_name(sh_file_path):
-    # """Extract meaningful job name from the script path."""
-    # path_parts = sh_file_path.split(os.sep)
-    # # Get relevant segments - typically we want model type and dataset
-    # relevant_parts = []
-    
-    # # Look for model type
-    # for model in ["TabNet", "FTTransformer", "MLP", "LogReg", "LightGBM", "ResNet", "TabTransformer", "Trompt"]:
-    #     if model in path_parts:
-    #         relevant_parts.append(model)
-    
-    # # Look for dataset information
-    # # Add dataset name if available
-    # if "higgs" in sh_file_path:
-    #     relevant_parts.append("higgs")
-    # elif "jannis" in sh_file_path:
-    #     relevant_parts.append("jannis")
-    # elif "synthetic_data" in sh_file_path:
-    #     # For synthetic data, extract a shortened identifier
-    #     synthetic_match = re.search(r'n_feat(\d+)_n_informative(\d+)', sh_file_path)
-    #     if synthetic_match:
-    #         feat, info = synthetic_match.groups()
-    #         relevant_parts.append(f"synth_{feat}_{info}")
-    #     else:
-    #         relevant_parts.append("synthetic")
-    
-    # # Add XAI method information
-    # if "lime" in sh_file_path:
-    #     relevant_parts.append("lime")
-    # elif "gradient_methods" in sh_file_path:
-    #     if "integrated_gradient" in sh_file_path:
-    #         relevant_parts.append("ig")
-    #     else:
-    #         relevant_parts.append("grad")
-    
-    # # Add distance measure if available
-    # if "euclidean" in sh_file_path:
-    #     relevant_parts.append("euclidean")
-    # if "default" in sh_file_path:
-    #     relevant_parts.append("default")
-
-    
-    # # If we couldn't extract meaningful parts, use the base filename
-    # if not relevant_parts:
     base_name = os.path.basename(sh_file_path)
     job_name = os.path.splitext(base_name)[0]
     path_parts = sh_file_path.split(os.sep)
@@ -143,6 +103,7 @@ def create_sbatch_wrapper(sh_file_path):
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=clara.grotehans@student.uni-tuebingen.de
 
+echo "Job started at $(date)"
 
 # Execute the command from the original script
 {sh_file_path}
@@ -166,15 +127,21 @@ def main():
     # Find the experiment_commands directory
     base_dir = Path(__file__).parent.parent  # xai_locality root
     experiment_dir = os.path.join(base_dir, 'commands_sbach_files', 'experiment_commands')
-    
+    experiment_dir = "/home/grotehans/xai_locality_v2/commands_sbach_files/experiment_commands/shap/LightGBM"
     if not os.path.exists(experiment_dir):
         print(f"Directory {experiment_dir} not found")
         return
     
+    # Find all .sh files only within folders named "synthetic_data" and exclude run_all.sh files
     # Find all .sh files but exclude run_all.sh files
-    all_sh_files = glob.glob(os.path.join(experiment_dir, "**/*.sh"), recursive=True)
-    sh_files = [f for f in all_sh_files if (os.path.basename(f) != "run_all.sh")]
-    
+    all_sh_files = [
+        f for f in glob.glob(os.path.join(experiment_dir, "**/*.sh"), recursive=True)
+        if ( "euclidean" in f)
+    ]
+    # sh_files = [f for f in all_sh_files if (os.path.basename(f) != "run_all.sh")]
+    # all_sh_files = glob.glob(os.path.join(experiment_dir, "**/*.sh"), recursive=True)
+
+    sh_files = [f for f in all_sh_files if os.path.basename(f) != "run_all.sh"]
     if not sh_files:
         print(f"No individual experiment shell scripts found in {experiment_dir}")
         return

@@ -54,10 +54,13 @@ def parse_arguments():
     parser.add_argument('--random_seed_synthetic_data', type=int, default=42,)
     parser.add_argument('--gradient_method', type=str, default="IG",
                         help='Gradient method to use (IG or IG+SmoothGrad)')
+    parser.add_argument('--kernel_width', type=str, default="default",
+                        help='Kernel width for LIME (default, double, half, or a float value)')
+    parser.add_argument("--create_additional_analysis_data", action="store_true",)
     return parser.parse_args()
 
 def create_command_file(output_dir, model, setting, method, distance_measure, kernel_width, num_lime_features,
-                        is_synthetic, skip_training, force_training, skip_knn, skip_fraction, gradient_method=None,
+                        is_synthetic, skip_training, force_training, skip_knn, skip_fraction, create_additional_analysis_data, gradient_method=None,
                         synthetic_params=None, random_seed=42):
     """Create a file containing the Python command for a specific configuration"""
     
@@ -65,6 +68,8 @@ def create_command_file(output_dir, model, setting, method, distance_measure, ke
     if method == "gradient_methods" and gradient_method:
         if gradient_method == "IG":
             method_dir = os.path.join(output_dir, method, "integrated_gradient")
+        elif gradient_method =="Saliency":
+            method_dir = os.path.join(output_dir, method, "saliency")
         else:
             method_dir = os.path.join(output_dir, method, "smooth_grad")
     else:
@@ -163,7 +168,7 @@ def create_command_file(output_dir, model, setting, method, distance_measure, ke
                 synthetic_args += " --hypercube"
             
         base_args += synthetic_args
-        base_args += " --num_trials 15 --num_repeats 1 --epochs 10 --optimize"
+        base_args += f" --num_trials 15 --num_repeats 1 --epochs 40 --optimize"
     else:
         # Determine dataset size scale from the dataset_lookup dictionary
         dataset_scale = None
@@ -178,7 +183,7 @@ def create_command_file(output_dir, model, setting, method, distance_measure, ke
         elif "large" in base_args:
             base_args += " --epochs 10 --num_trials 3 "
         else:
-            base_args += " --epochs 40 --include_val --include_trn --num_trials 10 "
+            base_args += " --epochs 40 --include_val --num_trials 10 "
 
     # Method-specific parameters
     if method == "lime":
@@ -196,6 +201,8 @@ def create_command_file(output_dir, model, setting, method, distance_measure, ke
         base_args += " --skip_knn"
     if skip_fraction:
         base_args += " --skip_fraction"
+    if create_additional_analysis_data:
+        base_args += " --create_additional_analysis_data --downsample_analysis "
     
     # Create the full command
     command = f"/home/grotehans/miniconda3/envs/tab_models/bin/python -u run_experiment_setup.py {base_args}"
@@ -206,6 +213,7 @@ def create_command_file(output_dir, model, setting, method, distance_measure, ke
     file_name_add_on += "_skip_fraction" if skip_fraction else ""
     file_name_add_on += "_force_training" if force_training else ""
     file_name_add_on += f"_random_seed_{random_seed}"
+    file_name_add_on += f"_downsample_analysis" if create_additional_analysis_data else ""
     
     if method == "lime":
         filename = f"lime_{kernel_width}{distance_suffix}{file_name_add_on}.sh"
@@ -235,7 +243,6 @@ def main():
     output_dir = os.path.join(args.base_dir, args.output_dir)
     os.makedirs(output_dir, exist_ok=True)
     
-    # Define synthetic configurations with explicit parameters
     synthetic_configs = [
         {
             'n_features': 50, 
@@ -460,6 +467,61 @@ def main():
             'random_seed_synthetic_data': 42,
             'hypercube': False
         },
+
+        {
+            'n_features': 100,
+            'n_informative': 10,
+            'n_redundant': 0,
+            'n_repeated': 0,
+            'n_classes': 2,
+            'n_samples': 100000,
+            'n_clusters_per_class': 10,
+            'class_sep': 0.9,
+            'flip_y': 0.05,
+            'random_seed_synthetic_data': 42,
+            'hypercube': True,
+            'test_size': 0.4,
+            'val_size': 0.1
+        },
+        {
+            'n_features': 50,
+            'n_informative': 5,
+            'n_redundant': 0,
+            'n_repeated': 0,
+            'n_classes': 2,
+            'n_samples': 100000,
+            'n_clusters_per_class': 5,
+            'class_sep': 0.9,
+            'flip_y': 0,
+            'random_seed_synthetic_data': 42,
+            'hypercube': False
+        },
+        {
+            'n_features': 100,
+            'n_informative': 10,
+            'n_redundant': 0,
+            'n_repeated': 0,
+            'n_classes': 2,
+            'n_samples': 100000,
+            'n_clusters_per_class': 10,
+            'class_sep': 0.8,
+            'flip_y': 0.05,
+            'random_seed_synthetic_data': 42,
+            'hypercube': True
+        },
+        {
+            'n_features': 200,
+            'n_informative': 8,
+            'n_redundant': 0,
+            'n_repeated': 0,
+            'n_classes': 2,
+            'n_samples': 100000,
+            'n_clusters_per_class': 15,
+            'class_sep': 0.8,
+            'flip_y': 0.0,
+            'random_seed_synthetic_data': 42,
+            'hypercube': True
+        },
     ]
     
     # Generate setting names from configurations
@@ -479,115 +541,130 @@ def main():
             setting += f"_hypercube{config['hypercube']}"
         synthetic_settings.append((setting, config))
     
-    models = ["LightGBM", "MLP", "LogReg",  "TabNet", "FTTransformer", "ResNet", "TabTransformer"]
-    standard_settings = ["diabetes130us", "MiniBooNE", "credit", "california", "magic_telescope",  "house_16H", "higgs_small", "higgs", "jannis"]#["higgs", "jannis"] # "bank_marketing"
-    standard_categorical = ['albert', 'road_safety', 'kdd_census_income', "electricity", "adult_census_income", "adult", "bank_marketing", "mushroom"]
+    models = ["LightGBM", "MLP",  "TabNet", "ResNet", "TabTransformer"]
+    standard_settings = ["diabetes130us", 
+                         "MiniBooNE", 
+                         "credit", 
+                         "california", 
+                         "magic_telescope",  
+                         "house_16H", 
+                         "higgs_small", 
+                         "higgs", 
+                         "jannis",
+                         "default_of_credit_card_clients",
+                         "eye_movements",
+                         "heloc",
+                         "pol",
+                         ]#["higgs", "jannis"] # "bank_marketing"
+    standard_categorical = ['albert', 'road_safety', "electricity", "adult_census_income", "adult", "bank_marketing", "mushroom"]
     standard_settings += standard_categorical
-    methods = ["lime", "gradient_methods"]
-    distance_measures = ["euclidean", "manhattan", "cosine"]
+    methods = ["gradient_methods", "lime", "shap", "lime_captum"]
+    distance_measures = ["euclidean"]
     
     # Generate all command files
     created_files = []
-    
-    # First, handle standard benchmark datasets
-    for model in models:
-        for setting in standard_settings:
-            for method in methods:
-                if method == "gradient_methods":
-                    if model =="LightGBM":
-                        continue
-                    gradient_method = args.gradient_method  # Integrated Gradient
-                    
-                    for distance_measure in distance_measures:
-                        file = create_command_file(
-                            output_dir=output_dir,
-                            model=model,
-                            setting=setting,
-                            method=method,
-                            distance_measure=distance_measure,
-                            kernel_width=None,
-                            num_lime_features=10,
-                            is_synthetic=False,
-                            skip_training=args.skip_training,
-                            force_training=args.force_training,
-                            skip_knn=args.skip_knn,
-                            skip_fraction=args.skip_fraction,
-                            gradient_method=gradient_method,
-                            random_seed=args.random_seed,
-                        )
-                        created_files.append(file)
-                else:  # lime
-                    kernel_width = "default"
-                    
-                    for distance_measure in distance_measures:
-                        file = create_command_file(
-                            output_dir=output_dir,
-                            model=model,
-                            setting=setting,
-                            method=method,
-                            distance_measure=distance_measure,
-                            kernel_width=kernel_width,
-                            num_lime_features=10,
-                            is_synthetic=False,
-                            skip_training=args.skip_training,
-                            force_training=args.force_training,
-                            skip_knn=args.skip_knn,
-                            skip_fraction=args.skip_fraction,
-                            random_seed=args.random_seed,
+    for random_seed in [42, 54, 123, 999, 21]:
+        # First, handle standard benchmark datasets
+        for model in models:
+            for setting in standard_settings:
+                for method in methods:
+                    if method == "gradient_methods":
+                        if model =="LightGBM":
+                            continue
 
-                        )
-                        created_files.append(file)
-    
-    # Then, handle synthetic datasets
-    for model in models:
-        for setting_info in synthetic_settings:
-            setting, config = setting_info
-            
-            for method in methods:
-                if method == "gradient_methods":
-                    gradient_method = args.gradient_method  # Integrated Gradient
-                    
-                    for distance_measure in distance_measures:
-                        file = create_command_file(
-                            output_dir=output_dir,
-                            model=model,
-                            setting=setting,
-                            method=method,
-                            distance_measure=distance_measure,
-                            kernel_width=None,
-                            num_lime_features=10,
-                            is_synthetic=True,
-                            skip_training=args.skip_training,
-                            force_training=args.force_training,
-                            skip_knn=args.skip_knn,
-                            skip_fraction=args.skip_fraction,
-                            gradient_method=gradient_method,
-                            synthetic_params=config,
-                            random_seed=args.random_seed,
-                        )
-                        created_files.append(file)
-                else:  # lime
-                    kernel_width = "default"
-                    
-                    for distance_measure in distance_measures:
-                        file = create_command_file(
-                            output_dir=output_dir,
-                            model=model,
-                            setting=setting,
-                            method=method,
-                            distance_measure=distance_measure,
-                            kernel_width=kernel_width,
-                            num_lime_features=10,
-                            is_synthetic=True,
-                            skip_training=args.skip_training,
-                            force_training=args.force_training,
-                            skip_knn=args.skip_knn,
-                            skip_fraction=args.skip_fraction,
-                            synthetic_params=config,
-                            random_seed=args.random_seed,
-                        )
-                        created_files.append(file)
-    
-    
+                        for gradient_method in ["IG", "IG+SmoothGrad", "Saliency"]:
+                            for distance_measure in distance_measures:
+                                file = create_command_file(
+                                    output_dir=output_dir,
+                                    model=model,
+                                    setting=setting,
+                                    method=method,
+                                    distance_measure=distance_measure,
+                                    kernel_width=None,
+                                    num_lime_features=10,
+                                    is_synthetic=False,
+                                    skip_training=args.skip_training,
+                                    force_training=args.force_training,
+                                    skip_knn=args.skip_knn,
+                                    create_additional_analysis_data=args.create_additional_analysis_data,
+                                    skip_fraction=args.skip_fraction,
+                                    gradient_method=gradient_method,
+                                    random_seed=random_seed,
+                                )
+                                created_files.append(file)
+                    else:  # lime
+                        kernel_width = args.kernel_width
+                        for distance_measure in distance_measures:
+                            file = create_command_file(
+                                output_dir=output_dir,
+                                model=model,
+                                setting=setting,
+                                method=method,
+                                distance_measure=distance_measure,
+                                create_additional_analysis_data=args.create_additional_analysis_data,
+                                kernel_width=kernel_width,
+                                num_lime_features=10,
+                                is_synthetic=False,
+                                skip_training=args.skip_training,
+                                force_training=args.force_training,
+                                skip_knn=args.skip_knn,
+                                skip_fraction=args.skip_fraction,
+                                random_seed=random_seed,
+
+                            )
+                            created_files.append(file)
+        
+        # Then, handle synthetic datasets
+        for model in models:
+            for setting_info in synthetic_settings:
+                setting, config = setting_info
+                
+                for method in methods:
+                    if method == "gradient_methods":
+                        for gradient_method in ["IG", "IG+SmoothGrad", "Saliency"]:  # Integrated Gradient
+                            for distance_measure in distance_measures:
+                                file = create_command_file(
+                                    output_dir=output_dir,
+                                    model=model,
+                                    setting=setting,
+                                    method=method,
+                                    distance_measure=distance_measure,
+                                    kernel_width=None,
+                                    num_lime_features=10,
+                                    is_synthetic=True,
+                                    skip_training=args.skip_training,
+                                    force_training=args.force_training,
+                                    create_additional_analysis_data=args.create_additional_analysis_data,
+                                    skip_knn=args.skip_knn,
+                                    skip_fraction=args.skip_fraction,
+                                    gradient_method=gradient_method,
+                                    synthetic_params=config,
+                                    random_seed=random_seed,
+                                )
+                                created_files.append(file)
+                    else:  # lime
+                        kernel_width = args.kernel_width
+                        
+                        for distance_measure in distance_measures:
+                            file = create_command_file(
+                                output_dir=output_dir,
+                                model=model,
+                                setting=setting,
+                                method=method,
+                                distance_measure=distance_measure,
+                                kernel_width=kernel_width,
+                                num_lime_features=10,
+                                is_synthetic=True,
+                                skip_training=args.skip_training,
+                                force_training=args.force_training,
+                                create_additional_analysis_data=args.create_additional_analysis_data,
+                                skip_knn=args.skip_knn,
+                                skip_fraction=args.skip_fraction,
+                                synthetic_params=config,
+                                random_seed=random_seed,
+                            )
+                            created_files.append(file)
+        
+        
 if __name__ == "__main__":
     main()

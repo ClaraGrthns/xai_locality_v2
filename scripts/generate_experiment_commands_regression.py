@@ -6,6 +6,41 @@ sys.path.append(os.path.join(os.getcwd(), '..'))
 sys.path.append(os.path.join(os.getcwd(), 'src'))
 # from src.dataset.synthetic_data import get_setting_name_classification, get_setting_name_regression
 
+
+data_lookup = {
+        "small": {
+            0: "bike_sharing_demand",
+            1: "brazilian_houses",
+            2: "cpu_act",
+            3: "elevators",
+            4: "house_sales",
+            5: "houses",
+            6: "sulfur",
+            7: "superconduct",
+            8: "topo_2_1",
+            9: "visualizing_soil",
+            10: "wine_quality",
+            11: "yprop_4_1",
+            12: "california_housing",
+        },
+        "medium": {
+            0: "allstate_claims_severity",
+            1: "sgemm_gpu_kernel_performance",
+            2: "diamonds",
+            3: "medical_charges",
+            4: "particulate_matter_ukair_2017",
+            5: "seattlecrime6",
+        },
+        "large": {
+            0: "airlines_DepDelay_1M",
+            1: "delays_zurich_transport",
+            2: "nyc-taxi-green-dec-2016",
+            3: "microsoft",
+            4: "yahoo",
+            5: "year",
+        }
+}
+
 def get_setting_name_regression(regression_mode,
                                 n_features,
                                 n_informative, 
@@ -26,7 +61,7 @@ def get_setting_name_regression(regression_mode,
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Generate Python commands for running experiments")
-    parser.add_argument('--output_dir', type=str, default='commands_sbach_files/experiment_commands_regression',
+    parser.add_argument('--output_dir', type=str, default='/home/grotehans/xai_locality_v2/commands_sbach_files/experiment_commands',
                         help='Directory to save the generated command files')
     parser.add_argument('--base_dir', type=str, default=str(Path(__file__).resolve().parent.parent),
                         help='Base directory for the experiment')
@@ -38,14 +73,17 @@ def parse_arguments():
                         help='Add --skip_knn flag to commands')
     parser.add_argument('--skip_fraction', action='store_true',
                         help='Add --skip_fraction flag to commands')
+    parser.add_argument('--kernel_width', type=str, default="default",
+                        help='Kernel width for LIME (default, double, half, or a float value)')
     parser.add_argument('--random_seed_synthetic_data', type=int, default=42,)
     parser.add_argument('--random_seed', type=int, default=42,)
-    parser.add_argument('--gradient_method', type=str, default="IG",
+    parser.add_argument('--gradient_method', type=str, default="Saliency",
                         help='Gradient method to use (IG or IG+SmoothGrad)')
+    parser.add_argument("--create_additional_analysis_data", action="store_true",)
     return parser.parse_args()
 
 def create_command_file(output_dir, model, setting, method, distance_measure, kernel_width, num_lime_features,
-                        is_synthetic, skip_training, force_training, skip_knn, skip_fraction, gradient_method=None,
+                        is_synthetic, skip_training, force_training, skip_knn, skip_fraction, create_additional_analysis_data, gradient_method=None,
                         synthetic_params=None, random_seed=42):
     """Create a file containing the Python command for a specific configuration"""
     
@@ -53,6 +91,8 @@ def create_command_file(output_dir, model, setting, method, distance_measure, ke
     if method == "gradient_methods" and gradient_method:
         if gradient_method == "IG":
             method_dir = os.path.join(output_dir, method, "integrated_gradient")
+        elif gradient_method =="Saliency":
+            method_dir = os.path.join(output_dir, method, "saliency")
         else:
             method_dir = os.path.join(output_dir, method, "smooth_grad")
     else:
@@ -71,7 +111,7 @@ def create_command_file(output_dir, model, setting, method, distance_measure, ke
     model_dir = os.path.join(dataset_dir, distance_measure)
     
     os.makedirs(model_dir, exist_ok=True)
-    epochs = 20 if model not in  ["TabTransformer", "FTTransformer"] else 15
+    epochs = 30
     # Format args for the command
     base_args = f"--model_type {model} --setting {setting} --method {method} --distance_measure {distance_measure} --regression --force --random_seed {random_seed}"
     
@@ -103,7 +143,7 @@ def create_command_file(output_dir, model, setting, method, distance_measure, ke
                                 f" --n_samples {n_samples}"
                                 f" --noise {noise}"
                                 f" --random_seed_synthetic_data {random_seed_synthetic_data}"
-                                f" --epochs {epochs} --num_trials 5 --num_repeats 1 "
+                                f" --epochs 30 --num_trials 10 --num_repeats 1 "
                                 )
                 base_args += synthetic_args
             else:
@@ -117,45 +157,63 @@ def create_command_file(output_dir, model, setting, method, distance_measure, ke
                                 f" --test_size {test_size}"
                                 f" --val_size {val_size}"
                                 f" --random_seed_synthetic_data {random_seed_synthetic_data}"
-                                f" --epochs {epochs} --num_trials 5 --num_repeats 1"
+                                f" --epochs {epochs} --num_trials 10 --num_repeats 1"
                                 )
                 if use_custom_generator is not None:
                     synthetic_args += f" --use_custom_generator"
                     
                 base_args += synthetic_args
-    if setting == "airlines_DepDelay_1M":
-        base_args += " --use_benchmark --task_type regression --scale large --idx 0 --num_trials 3 --num_repeats 1 --epochs 15"
-    elif setting == "delays_zurich_transport":
-        base_args += " --use_benchmark --task_type regression --scale large --idx 1 --num_trials 3 --num_repeats 1 --epochs 15"
-    elif setting == "nyc-taxi-green-dec-2016":
-        base_args += " --use_benchmark --task_type regression --scale large --idx 2 --num_trials 3 --num_repeats 1 --epochs 15"
-    elif setting == "microsoft":
-        base_args += " --use_benchmark --task_type regression --scale large --idx 3 --num_trials 3 --num_repeats 1 --epochs 15"
-    elif setting == "yahoo":
-        base_args += " --use_benchmark --task_type regression --scale large --idx 4 --num_trials 3 --num_repeats 1 --epochs 15"
-    elif setting == "year":
-        base_args += " --use_benchmark --task_type regression --scale large --idx 5 --num_trials 3 --num_repeats 1 --epochs 15"
-    elif setting == "medical_charges":
-        base_args += " --use_benchmark --task_type regression --scale medium --idx 3 --num_trials 5 --num_repeats 1 --epochs 25 --include_val"
-    elif setting == "california_housing":
-        base_args += " --use_benchmark --task_type regression --scale small --idx 12 --num_trials 10 --num_repeats 1 --epochs 30 --include_val --include_trn "
-    elif setting == "superconduct":
-        base_args += " --use_benchmark --task_type regression --scale small --idx 7 --num_trials 10 --num_repeats 1 --epochs 30 --include_val --include_trn "
-    elif setting == "houses":
-        base_args += " --use_benchmark --task_type regression --scale small --idx 5 --num_trials 10 --num_repeats 1 --epochs 30 --include_val --include_trn "
-    elif setting == "elevators":
-        base_args += " --use_benchmark --task_type regression --scale small --idx 3 --num_trials 10 --num_repeats 1 --epochs 30 --include_val --include_trn "
-    elif setting == "allstate_claims_severity":
-        base_args += " --use_benchmark --task_type regression --scale medium --idx 0 --num_trials 5 --num_repeats 1 --epochs 25 --include_val"
-    elif setting == "sgemm_gpu_kernel_performance":
-        base_args += " --use_benchmark --task_type regression --scale medium --idx 1 --num_trials 5 --num_repeats 1 --epochs 25 --include_val"
-    elif setting == "diamonds":
-        base_args += " --use_benchmark --task_type regression --scale medium --idx 2 --num_trials 5 --num_repeats 1 --epochs 25 --include_val"
-    elif setting == "particulate_matter_ukair_2017":
-        base_args += " --use_benchmark --task_type regression --scale medium --idx 4 --num_trials 5 --num_repeats 1 --epochs 25 --include_val"
-    elif setting == "seattlecrime6":
-        base_args += " --use_benchmark --task_type regression --scale medium --idx 5 --num_trials 5 --num_repeats 1 --epochs 25 --include_val"
-    
+    # if setting == "airlines_DepDelay_1M":
+    #     base_args += " --use_benchmark --task_type regression --scale large --idx 0 --num_trials 3 --num_repeats 1 --epochs 15"
+    # elif setting == "delays_zurich_transport":
+    #     base_args += " --use_benchmark --task_type regression --scale large --idx 1 --num_trials 3 --num_repeats 1 --epochs 15"
+    # elif setting == "nyc-taxi-green-dec-2016":
+    #     base_args += " --use_benchmark --task_type regression --scale large --idx 2 --num_trials 3 --num_repeats 1 --epochs 15"
+    # elif setting == "microsoft":
+    #     base_args += " --use_benchmark --task_type regression --scale large --idx 3 --num_trials 3 --num_repeats 1 --epochs 15"
+    # elif setting == "yahoo":
+    #     base_args += " --use_benchmark --task_type regression --scale large --idx 4 --num_trials 3 --num_repeats 1 --epochs 15"
+    # elif setting == "year":
+    #     base_args += " --use_benchmark --task_type regression --scale large --idx 5 --num_trials 3 --num_repeats 1 --epochs 15"
+    # elif setting == "medical_charges":
+    #     base_args += " --use_benchmark --task_type regression --scale medium --idx 3 --num_trials 5 --num_repeats 1 --epochs 25 --include_val "
+    # elif setting == "california_housing":
+    #     base_args += " --use_benchmark --task_type regression --scale small --idx 12 --num_trials 10 --num_repeats 1 --epochs 30 --include_val "
+    # elif setting == "superconduct":
+    #     base_args += " --use_benchmark --task_type regression --scale small --idx 7 --num_trials 10 --num_repeats 1 --epochs 30 --include_val "
+    # elif setting == "houses":
+    #     base_args += " --use_benchmark --task_type regression --scale small --idx 5 --num_trials 10 --num_repeats 1 --epochs 30 --include_val  "
+    # elif setting == "elevators":
+    #     base_args += " --use_benchmark --task_type regression --scale small --idx 3 --num_trials 10 --num_repeats 1 --epochs 30 --include_val   "
+    # elif setting == "allstate_claims_severity":
+    #     base_args += " --use_benchmark --task_type regression --scale medium --idx 0 --num_trials 5 --num_repeats 1 --epochs 25 --include_val"
+    # elif setting == "sgemm_gpu_kernel_performance":
+    #     base_args += " --use_benchmark --task_type regression --scale medium --idx 1 --num_trials 5 --num_repeats 1 --epochs 25 --include_val"
+    # elif setting == "diamonds":
+    #     base_args += " --use_benchmark --task_type regression --scale medium --idx 2 --num_trials 5 --num_repeats 1 --epochs 25 --include_val"
+    # elif setting == "particulate_matter_ukair_2017":
+    #     base_args += " --use_benchmark --task_type regression --scale medium --idx 4 --num_trials 5 --num_repeats 1 --epochs 25 --include_val"
+    # elif setting == "seattlecrime6":
+    #     base_args += " --use_benchmark --task_type regression --scale medium --idx 5 --num_trials 5 --num_repeats 1 --epochs 25 --include_val"
+    else:
+        dataset_scale = None
+        idx = None
+        for scale, datasets in data_lookup.items():
+            if setting in [d for d in datasets.values()]:
+                dataset_scale = scale
+                break
+        for scale, datasets in data_lookup.items():
+            if setting in [d for d in datasets.values()]:
+                idx = list(datasets.keys())[list(datasets.values()).index(setting)]
+                break
+        base_args += f" --scale {dataset_scale} --idx {idx} --use_benchmark --task_type regression --num_repeats 1 "
+        if "medium" in base_args:
+            base_args += " --epochs 30 --include_val --num_trials 10 "
+        elif "large" in base_args:
+            base_args += " --epochs 15 --num_trials 5 "
+        else:
+            base_args += " --epochs 50 --include_val --num_trials 15 "
+        
     if method == "lime":
         base_args += f" --kernel_width {kernel_width} --num_lime_features {num_lime_features}"
     elif method == "gradient_methods" and gradient_method:
@@ -171,7 +229,8 @@ def create_command_file(output_dir, model, setting, method, distance_measure, ke
         base_args += " --skip_knn"
     if skip_fraction:
         base_args += " --skip_fraction"
-    
+    if create_additional_analysis_data:
+        base_args += " --create_additional_analysis_data --downsample_analysis "
     # Create the full command
     command = f"/home/grotehans/miniconda3/envs/tab_models/bin/python -u run_experiment_setup.py {base_args}"
     
@@ -181,6 +240,7 @@ def create_command_file(output_dir, model, setting, method, distance_measure, ke
     file_name_add_on += "_skip_fraction" if skip_fraction else ""
     file_name_add_on += f"_random_seed_{random_seed}"
     file_name_add_on += "_force_training" if force_training else ""
+    file_name_add_on += f"_downsample_analysis" if create_additional_analysis_data else ""
     
     if method == "lime":
         filename = f"lime_{kernel_width}{distance_suffix}{file_name_add_on}.sh"
@@ -417,7 +477,54 @@ def main():
             'random_seed_synthetic_data': 42,
             'tail_strength': None,
             'effective_rank': None
+        },
+        {
+            'regression_mode': "friedman1",
+            'n_samples': 200000,
+            'noise': 0.01,
+            'random_seed_synthetic_data': 42,
+        },
+
+        {
+            'regression_mode': "friedman1",
+            'n_samples': 200000,
+            'noise': 0.1,
+            'random_seed_synthetic_data': 42,
+        },
+        {
+            'regression_mode': "friedman1",
+            'n_samples': 200000,
+            'noise': 0.5,
+            'random_seed_synthetic_data': 42,
+        },
+
+        {
+            'regression_mode': "friedman2",
+            'n_samples': 200000,
+            'noise': 0.1,
+            'random_seed_synthetic_data': 42,
+        },
+        {
+            'regression_mode': "friedman2",
+            'n_samples': 200000,
+            'noise': 0.5,
+            'random_seed_synthetic_data': 42,
+        },
+        {
+            'regression_mode': "friedman3",
+            'n_samples': 200000,
+            'noise': 0.1,
+            'random_seed_synthetic_data': 42,
+        },
+        {
+            'regression_mode': "friedman3",
+            'n_samples': 200000,
+            'noise': 0.5,
+            'random_seed_synthetic_data': 42,
         }
+
+
+
     ]
     
     # Generate setting names from configurations
@@ -434,7 +541,7 @@ def main():
                                               random_seed=config['random_seed_synthetic_data'])
         synthetic_settings.append((setting, config))
     
-    models = ["LightGBM", "MLP", "LinReg",  "TabNet", "FTTransformer", "ResNet", "TabTransformer"]
+    models = ["LightGBM", "MLP", "TabNet", "ResNet", "TabTransformer"]
     standard_settings = ["airlines_DepDelay_1M", 
                          "delays_zurich_transport",
                            "nyc-taxi-green-dec-2016", 
@@ -451,279 +558,117 @@ def main():
                             "diamonds",
                             "particulate_matter_ukair_2017",
                             "seattlecrime6",
+                            "bike_sharing_demand", 
+                            "brazilian_houses",
+                            "house_sales",
+                            "sulfur",
                              ]
-    methods = ["lime", "gradient_methods"]
+    methods = ["gradient_methods", "lime", "lime_captum", "shap"] #
     distance_measures = ["euclidean"]
     
     # Generate all command files
     created_files = []
-    
-    # First, handle standard benchmark datasets
-    for model in models:
-        for setting in standard_settings:
-            for method in methods:
-                if method == "gradient_methods":
-                    if model =="LightGBM":
-                        continue
-                    gradient_method = args.gradient_method  # Integrated Gradient
-                    
-                    for distance_measure in distance_measures:
-                        file = create_command_file(
-                            output_dir=output_dir,
-                            model=model,
-                            setting=setting,
-                            method=method,
-                            distance_measure=distance_measure,
-                            kernel_width=None,
-                            num_lime_features=10,
-                            is_synthetic=False,
-                            skip_training=args.skip_training,
-                            force_training=args.force_training,
-                            skip_knn=args.skip_knn,
-                            skip_fraction=args.skip_fraction,
-                            gradient_method=gradient_method,
-                            random_seed=args.random_seed,
-                        )
-                        created_files.append(file)
-                else:  # lime
-                    kernel_width = "default"
-                    
-                    for distance_measure in distance_measures:
-                        file = create_command_file(
-                            output_dir=output_dir,
-                            model=model,
-                            setting=setting,
-                            method=method,
-                            distance_measure=distance_measure,
-                            kernel_width=kernel_width,
-                            num_lime_features=10,
-                            is_synthetic=False,
-                            skip_training=args.skip_training,
-                            force_training=args.force_training,
-                            skip_knn=args.skip_knn,
-                            skip_fraction=args.skip_fraction,
-                            random_seed=args.random_seed,
-                        )
-                        created_files.append(file)
-    
-    # Then, handle synthetic datasets
-    for model in models:
-        for setting_info in synthetic_settings:
-            setting, config = setting_info
-            for method in methods:
-                if method == "gradient_methods":
-                    gradient_method = args.gradient_method  # Integrated Gradient
-                    
-                    for distance_measure in distance_measures:
-                        file = create_command_file(
-                            output_dir=output_dir,
-                            model=model,
-                            setting=setting,
-                            method=method,
-                            distance_measure=distance_measure,
-                            kernel_width=None,
-                            num_lime_features=10,
-                            is_synthetic=True,
-                            skip_training=args.skip_training,
-                            force_training=args.force_training,
-                            skip_knn=args.skip_knn,
-                            skip_fraction=args.skip_fraction,
-                            gradient_method=gradient_method,
-                            synthetic_params=config,
-                            random_seed=args.random_seed,
-                        )
-                        created_files.append(file)
-                else:  # lime
-                    kernel_width = "default"
-                    for distance_measure in distance_measures:
-                        file = create_command_file(
-                            output_dir=output_dir,
-                            model=model,
-                            setting=setting,
-                            method=method,
-                            distance_measure=distance_measure,
-                            kernel_width=kernel_width,
-                            num_lime_features=10,
-                            is_synthetic=True,
-                            skip_training=args.skip_training,
-                            force_training=args.force_training,
-                            skip_knn=args.skip_knn,
-                            skip_fraction=args.skip_fraction,
-                            synthetic_params=config,
-                            random_seed=args.random_seed,
-                        )
-                        created_files.append(file)
-    
-    # Create method-specific run_all.sh files
-    for method in methods:
-        method_dir = os.path.join(output_dir, method)
+    for random_seed in [42, 54, 123, 999, 21]:
+        # First, handle standard benchmark datasets
+        for model in models:
+            for setting in standard_settings:
+                for method in methods:
+                    if method == "gradient_methods":
+                        if model =="LightGBM":
+                            continue
+                        for gradient_method in ["IG", "IG+SmoothGrad", "Saliency"]:
+                            for distance_measure in distance_measures:
+                                file = create_command_file(
+                                    output_dir=output_dir,
+                                    model=model,
+                                    setting=setting,
+                                    method=method,
+                                    distance_measure=distance_measure,
+                                    kernel_width=None,
+                                    num_lime_features=10,
+                                    is_synthetic=False,
+                                    skip_training=args.skip_training,
+                                    force_training=args.force_training,
+                                    skip_knn=args.skip_knn,
+                                    create_additional_analysis_data=args.create_additional_analysis_data,
+                                    skip_fraction=args.skip_fraction,
+                                    gradient_method=gradient_method,
+                                    random_seed=random_seed,
+                                )
+                                created_files.append(file)
+                    else:  # lime
+                        kernel_width = args.kernel_width
+                        
+                        for distance_measure in distance_measures:
+                            file = create_command_file(
+                                output_dir=output_dir,
+                                model=model,
+                                setting=setting,
+                                method=method,
+                                distance_measure=distance_measure,
+                                kernel_width=kernel_width,
+                                num_lime_features=10,
+                                is_synthetic=False,
+                                skip_training=args.skip_training,
+                                force_training=args.force_training,
+                                create_additional_analysis_data=args.create_additional_analysis_data,
+                                skip_knn=args.skip_knn,
+                                skip_fraction=args.skip_fraction,
+                                random_seed=random_seed,
+                            )
+                            created_files.append(file)
         
-        # Special handling for gradient_methods with subdirectories
-        if method == "gradient_methods":
-            gradient_dirs = ["integrated_gradients"]
-            for gradient_dir in gradient_dirs:
-                gradient_method_dir = os.path.join(method_dir, gradient_dir)
-                gradient_files = [f for f in created_files if f"{method}/{gradient_dir}/" in f]
-                
-                if gradient_files:
-                    gradient_run_all = os.path.join(gradient_method_dir, "run_all.sh")
-                    with open(gradient_run_all, "w") as f:
-                        f.write("#!/bin/bash\n\n")
-                        f.write(f"# Run all experiments for {method}/{gradient_dir}\n\n")
-                        for file in gradient_files:
-                            f.write(f"{file}\n")
-                    
-                    os.chmod(gradient_run_all, 0o755)
-                    print(f"Created method runner: {gradient_run_all}")
-        else:
-            method_files = [f for f in created_files if f"/{method}/" in f]
-            if method_files:
-                method_run_all = os.path.join(method_dir, "run_all.sh")
-                with open(method_run_all, "w") as f:
-                    f.write("#!/bin/bash\n\n")
-                    f.write(f"# Run all experiments for method: {method}\n\n")
-                    for file in method_files:
-                        f.write(f"{file}\n")
-                
-                os.chmod(method_run_all, 0o755)
-                print(f"Created method runner: {method_run_all}")
-    
-    # Create model-specific run_all.sh files within each method
-    for method in methods:
-        if method == "gradient_methods":
-            gradient_dirs = ["integrated_gradients"]
-            for gradient_dir in gradient_dirs:
-                for model in models:
-                    model_dir = os.path.join(output_dir, method, gradient_dir, model)
-                    model_files = [f for f in created_files if f"{method}/{gradient_dir}/{model}/" in f]
-                    
-                    if not model_files:
-                        continue
-                        
-                    model_run_all = os.path.join(model_dir, "run_all.sh")
-                    with open(model_run_all, "w") as f:
-                        f.write("#!/bin/bash\n\n")
-                        f.write(f"# Run all experiments for {method}/{gradient_dir}/{model}\n\n")
-                        for file in model_files:
-                            f.write(f"{file}\n")
-                    
-                    os.chmod(model_run_all, 0o755)
-                    print(f"Created model runner: {model_run_all}")
-        else:
-            for model in models:
-                model_dir = os.path.join(output_dir, method, model)
-                model_files = [f for f in created_files if f"{method}/{model}/" in f]
-                
-                if not model_files:
-                    continue
-                    
-                model_run_all = os.path.join(model_dir, "run_all.sh")
-                with open(model_run_all, "w") as f:
-                    f.write("#!/bin/bash\n\n")
-                    f.write(f"# Run all experiments for {method}/{model}\n\n")
-                    for file in model_files:
-                        f.write(f"{file}\n")
-                
-                os.chmod(model_run_all, 0o755)
-                print(f"Created model runner: {model_run_all}")
-    
-    # Create dataset-specific run_all.sh files within each method/model
-    for method in methods:
-        if method == "gradient_methods":
-            gradient_dirs = ["integrated_gradients"]
-            for gradient_dir in gradient_dirs:
-                for model in models:
-                    # Standard datasets
-                    for dataset in standard_settings:
-                        dataset_dir = os.path.join(output_dir, method, gradient_dir, model, dataset)
-                        dataset_files = [f for f in created_files if f"{method}/{gradient_dir}/{model}/{dataset}/" in f]
-                        
-                        if dataset_files:
-                            dataset_run_all = os.path.join(dataset_dir, "run_all.sh")
-                            with open(dataset_run_all, "w") as f:
-                                f.write("#!/bin/bash\n\n")
-                                f.write(f"# Run all experiments for {method}/{gradient_dir}/{model}/{dataset}\n\n")
-                                for file in dataset_files:
-                                    f.write(f"{file}\n")
-                            
-                            os.chmod(dataset_run_all, 0o755)
-                            print(f"Created dataset runner: {dataset_run_all}")
-                    
-                    # Synthetic datasets
-                    for dataset, _ in synthetic_settings:
-                        dataset_dir = os.path.join(output_dir, method, gradient_dir, model, "regression_synthetic_data",  dataset)
-                        dataset_files = [f for f in created_files if f"{method}/{gradient_dir}/{model}/regression_synthetic_data/{dataset}/" in f]
-                        
-                        if dataset_files:
-                            dataset_run_all = os.path.join(dataset_dir, "run_all.sh")
-                            with open(dataset_run_all, "w") as f:
-                                f.write("#!/bin/bash\n\n")
-                                f.write(f"# Run all experiments for {method}/{gradient_dir}/{model}/regression_synthetic_data/{dataset}\n\n")
-                                for file in dataset_files:
-                                    f.write(f"{file}\n")
-                            
-                            os.chmod(dataset_run_all, 0o755)
-                            print(f"Created dataset runner: {dataset_run_all}")
-        else:
-            for model in models:
-                # Standard datasets
-                for dataset in standard_settings:
-                    dataset_dir = os.path.join(output_dir, method, model, dataset)
-                    dataset_files = [f for f in created_files if f"{method}/{model}/{dataset}/" in f]
-                    
-                    if dataset_files:
-                        dataset_run_all = os.path.join(dataset_dir, "run_all.sh")
-                        with open(dataset_run_all, "w") as f:
-                            f.write("#!/bin/bash\n\n")
-                            f.write(f"# Run all experiments for {method}/{model}/{dataset}\n\n")
-                            for file in dataset_files:
-                                f.write(f"{file}\n")
-                        
-                        os.chmod(dataset_run_all, 0o755)
-                        print(f"Created dataset runner: {dataset_run_all}")
-                
-                # Synthetic datasets
-                for dataset, _ in synthetic_settings:
-                    dataset_dir = os.path.join(output_dir, method, model, "regression_synthetic_data",  dataset)
-                    dataset_files = [f for f in created_files if f"{method}/{model}/regression_synthetic_data/{dataset}/" in f]
-                    
-                    if dataset_files:
-                        dataset_run_all = os.path.join(dataset_dir, "run_all.sh")
-                        with open(dataset_run_all, "w") as f:
-                            f.write("#!/bin/bash\n\n")
-                            f.write(f"# Run all experiments for {method}/{model}/regression_synthetic_data/{dataset}\n\n")
-                            for file in dataset_files:
-                                f.write(f"{file}\n")
-                        
-                        os.chmod(dataset_run_all, 0o755)
-                        print(f"Created dataset runner: {dataset_run_all}")
-                        
-    # Create a master run_all.sh file
-    run_all_path = os.path.join(output_dir, "run_all.sh")
-    with open(run_all_path, "w") as f:
-        f.write("#!/bin/bash\n\n")
-        f.write("# This script runs all generated experiment commands\n\n")
+        # Then, handle synthetic datasets
+        for model in models:
+            for setting_info in synthetic_settings:
+                setting, config = setting_info
+                for method in methods:
+                    if method == "gradient_methods":
+                        for gradient_method in ["IG", "IG+SmoothGrad", "Saliency"]:
+                            for distance_measure in distance_measures:
+                                file = create_command_file(
+                                    output_dir=output_dir,
+                                    model=model,
+                                    setting=setting,
+                                    method=method,
+                                    distance_measure=distance_measure,
+                                    kernel_width=None,
+                                    num_lime_features=10,
+                                    is_synthetic=True,
+                                    skip_training=args.skip_training,
+                                    create_additional_analysis_data=args.create_additional_analysis_data,
+                                    force_training=args.force_training,
+                                    skip_knn=args.skip_knn,
+                                    skip_fraction=args.skip_fraction,
+                                    gradient_method=gradient_method,
+                                    synthetic_params=config,
+                                    random_seed=random_seed,
+                                )
+                                created_files.append(file)
+                    else:  # lime
+                        kernel_width = args.kernel_width
+                        for distance_measure in distance_measures:
+                            file = create_command_file(
+                                output_dir=output_dir,
+                                model=model,
+                                setting=setting,
+                                method=method,
+                                distance_measure=distance_measure,
+                                kernel_width=kernel_width,
+                                create_additional_analysis_data=args.create_additional_analysis_data,
+                                num_lime_features=10,
+                                is_synthetic=True,
+                                skip_training=args.skip_training,
+                                force_training=args.force_training,
+                                skip_knn=args.skip_knn,
+                                skip_fraction=args.skip_fraction,
+                                synthetic_params=config,
+                                random_seed=random_seed,
+                            )
+                            created_files.append(file)
         
-        # Run each method's run_all.sh
-        for method in methods:
-            if method == "gradient_methods":
-                for gradient_dir in ["integrated_gradients"]:
-                    method_run_all = os.path.join(output_dir, method, gradient_dir, "run_all.sh")
-                    if os.path.exists(method_run_all):
-                        f.write(f"echo 'Running experiments for {method}/{gradient_dir}...'\n")
-                        f.write(f"{method_run_all}\n\n")
-            else:
-                method_run_all = os.path.join(output_dir, method, "run_all.sh")
-                if os.path.exists(method_run_all):
-                    f.write(f"echo 'Running experiments for {method}...'\n")
-                    f.write(f"{method_run_all}\n\n")
-    
-    os.chmod(run_all_path, 0o755)
-    print(f"\nCreated master runner: {run_all_path}")
-    
-    print(f"\nCreated {len(created_files)} command files in {output_dir}")
-    print("\nTo run all commands, you can use:")
-    print(f"{run_all_path}")
+        
+
     print("\nOr run experiments for a specific method:")
     print(f"<method>/run_all.sh")
     print("\nOr for a specific model within a method:")
