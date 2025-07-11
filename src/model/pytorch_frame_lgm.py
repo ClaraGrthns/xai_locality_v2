@@ -36,8 +36,10 @@ class PTFrame_LightGBMHandler(BaseModelHandler):
         return trn_feat, tst_feat, analysis_feat, tst_dataset, analysis_dataset
   
     def predict_fn(self, X):
+        if isinstance(X, torch.Tensor):
+            X = X.numpy()
         pred = self.model.model.predict(X)
-        if not self.args.regression:
+        if not self.args.regression and self.args.method != "tree_shap":
             pred = np.column_stack((1 - pred, pred))
         if self.args.method == "lime_captum":
             pred = torch.tensor(pred)

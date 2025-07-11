@@ -39,9 +39,6 @@ class BaseModelHandler:
     def _get_split_indices(self, whole_tst_feat):
         indices = np.random.permutation(len(whole_tst_feat))
         tst_indices, analysis_indices = np.split(indices, [self.args.max_test_points])
-        if self.args.downsample_analysis != 1.0 and not self.args.create_additional_analysis_data:
-            downsample_size = int(self.args.downsample_analysis * len(analysis_indices))
-            analysis_indices = analysis_indices[:downsample_size] 
         print("using the following indices for testing: ", tst_indices)
         return tst_indices, analysis_indices
     
@@ -144,12 +141,9 @@ class BaseModelHandler:
     
 
     def _split_data_in_tst_analysis(self, whole_tst_feat, val_feat, trn_feat):
-        args = self.args
         # Check for duplicates in whole_tst_feat
-        
-        tst_indices, analysis_indices = self._get_split_indices(whole_tst_feat)
-        analysis_feat = whole_tst_feat[analysis_indices]
-        analysis_feat = self._check_for_dublicates(analysis_feat)
+        tst_indices, _ = self._get_split_indices(whole_tst_feat)
+        analysis_feat = whole_tst_feat
         tst_feat = whole_tst_feat[tst_indices]
         # tst_feat = self._check_for_dublicates(tst_feat)
         if self.args.include_trn:
@@ -162,82 +156,14 @@ class BaseModelHandler:
                 analysis_feat = np.concatenate([analysis_feat, val_feat], axis=0)
             else:
                 analysis_feat = torch.cat([analysis_feat, val_feat], dim=0)
-        if "synthetic" in self.args.data_folder:
-            # n_additional_samples = 110000 if self.args.create_additional_analysis_data else 100000
-            # if self.args.regression:
-            #     _, trn_feat_unnormalized, _, _, _, _, _, _ = create_custom_synthetic_regression_data(regression_mode=self.args.regression_mode,
-            #                                                                                       n_features= args.n_features,
-            #                                                                                       n_informative=args.n_informative,
-            #                                                                                       n_samples=args.n_samples,
-            #                                                                                       noise=args.noise,
-            #                                                                                       bias=args.bias,
-            #                                                                                       random_seed=args.random_seed_synthetic_data,
-            #                                                                                       data_folder=args.data_folder,
-            #                                                                                       test_size=args.test_size,
-            #                                                                                       val_size=args.val_size,
-            #                                                                                       tail_strength=args.tail_strength,
-            #                                                                                       effective_rank=args.effective_rank,)
-            #     setting_name, X_train, X_val, X_test, y_train, y_val, y_test, col_indices = create_custom_synthetic_regression_data(regression_mode=self.args.regression_mode,
-            #                                                                                       n_features= args.n_features,
-            #                                                                                       n_informative=args.n_informative,
-            #                                                                                       n_samples=n_additional_samples,
-            #                                                                                       noise=args.noise,
-            #                                                                                       bias=args.bias,
-            #                                                                                       random_seed=args.random_seed_synthetic_data+1,
-            #                                                                                       data_folder=args.data_folder,
-            #                                                                                       test_size=args.test_size,
-            #                                                                                       val_size=args.val_size,
-            #                                                                                       tail_strength=args.tail_strength,
-            #                                                                                       effective_rank=args.effective_rank,)
-            #     X = np.concatenate([X_train, X_val, X_test], axis=0)
-            # else:
-            #     _, trn_feat_unnormalized, _, _, _, _, _ = create_synthetic_classification_data_sklearn(
-            #         n_features=args.n_features, 
-            #         n_informative=args.n_informative, 
-            #         n_redundant=args.n_redundant, 
-            #         n_repeated=args.n_repeated,
-            #         n_classes=args.n_classes, 
-            #         n_samples=args.n_samples,
-            #         n_clusters_per_class=args.n_clusters_per_class, 
-            #         class_sep=args.class_sep, 
-            #         flip_y=args.flip_y, 
-            #         random_seed=args.random_seed_synthetic_data, 
-            #         data_folder=args.data_folder,
-            #         hypercube = args.hypercube,
-            #         test_size=args.test_size, 
-            #         val_size=args.val_size)
-            #     X, y = make_classification(
-            #             n_samples=n_additional_samples,
-            #             n_features=self.args.n_features,
-            #             n_informative=self.args.n_informative,
-            #             n_redundant=self.args.n_redundant,
-            #             n_repeated=self.args.n_repeated,
-            #             n_classes=self.args.n_classes,
-            #             n_clusters_per_class=self.args.n_clusters_per_class,
-            #             class_sep=self.args.class_sep,
-            #             flip_y=self.args.flip_y,
-            #             hypercube=self.args.hypercube,
-            #             random_state= self.args.random_seed_synthetic_data,
-            #             shuffle=True  # Important for random sampling while maintaining balance
-            #     )
-            #     if not self.args.create_additional_analysis_data:
-            #         Xaux, X_test, y, y_test = train_test_split(X, y, test_size=0.4, random_state=42)
-            #         X_train, X_val, y_train, y_val = train_test_split(Xaux, y, test_size=0.1, random_state=42)
-            #     # X_mean = np.mean(trn_feat_unnormalized, axis=0)
-            #     # X_std = np.std(trn_feat_unnormalized, axis=0)
-            #     # X_analysis = X if self.args.create_additional_analysis_data else X_test[analysis_indices]
-            #     # X_normalized = (X_analysis - X_mean) / X_std
-            #     # if isinstance(analysis_feat, np.ndarray):
-            #     #     analysis_feat = X_normalized
-            #     # else:
-            #     #     analysis_feat = torch.tensor(X_normalized, dtype=torch.float32)
-            downsample_size = int(self.args.downsample_analysis * len(analysis_feat))
-            analysis_feat = analysis_feat[:downsample_size] 
+        analysis_feat = self._check_for_dublicates(analysis_feat)
         tst_dataset = TabularDataset(tst_feat)
         analysis_dataset = TabularDataset(analysis_feat)
         print("Length of data set for analysis", len(analysis_dataset))
         print("Length of test set", len(tst_dataset)) 
         return tst_feat, analysis_feat, tst_dataset, analysis_dataset
+
+
 
     def load_model(self):
         """Load model from path"""

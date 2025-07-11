@@ -1,7 +1,7 @@
 # model/xgboost_handler.py
 import numpy as np
 import torch
-# import xgboost
+import xgboost
 from torch_frame.typing import TaskType
 from torch_frame.gbdt import XGBoost
 from torch.utils.data import DataLoader
@@ -46,7 +46,7 @@ class PTFrame_XGBoostHandler(BaseModelHandler):
         pred = self.model.model.predict(dtest)
         if self.args.regression:
             return pred
-        if self.model.task_type == TaskType.BINARY_CLASSIFICATION:
+        if self.model.task_type == TaskType.BINARY_CLASSIFICATION and not self.args.method == "tree_shap":
             pred = np.column_stack((1 - pred, pred))
         return pred
 

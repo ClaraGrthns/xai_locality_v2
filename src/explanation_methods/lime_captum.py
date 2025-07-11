@@ -1,10 +1,7 @@
 from src.explanation_methods.base import BaseExplanationMethodHandler
 from captum.attr import LimeBase
 import torch
-from src.explanation_methods.lime_analysis.lime_captum_local_classifier import (compute_feature_attributions, 
-                                                                                compute_lime_all_preds_for_all_kNN,
-                                                                                compute_lime_only_local_preds_for_all_kNN,
-                                                                                compute_lime_all_regressionpreds_for_all_kNN)
+
 from torch import Tensor
 
 import os.path as osp
@@ -12,8 +9,6 @@ import os
 import h5py
 import numpy as np
 from torch.utils.data import DataLoader
-import time 
-from src.utils.sampling import uniform_ball_sample
 from captum._utils.models.linear_model import SkLearnLinearModel
 from captum.attr._core.lime import LimeBase
 #!/usr/bin/env python3
@@ -107,41 +102,30 @@ class LimeCaptumHandler(BaseExplanationMethodHandler):
         coefs, bias = self.explainer.attribute(kwargs["input"], target=kwargs["target"])
         return coefs, bias
     
-    def compute_explanations(self, results_path, predict_fn, tst_data):
+    def compute_explanations(self, results_path, predict_fn, tst_data, tst_set=True):
         tst_feat_for_expl_loader = DataLoader(tst_data, batch_size=1, shuffle=False)
         device = torch.device("cpu")
         feature_attribution_folder = osp.join(results_path,
                                     "feature_attribution")
         if self.args.kernel_width == "default":
-            bias_feature_attribution_file_path = osp.join(feature_attribution_folder, f"bias_feature_attribution_{self.args.gradient_method}_random_seed-{self.args.random_seed}.h5")
-            coefs_feature_attribution_file_path = osp.join(feature_attribution_folder, f"coefs_feature_attribution_{self.args.gradient_method}_random_seed-{self.args.random_seed}.h5")
+            coefs_feature_attribution_file_path = osp.join(feature_attribution_folder, f"coefs_feature_attribution_{'test_set' if tst_set else 'analysis_set'}_{self.args.gradient_method}_random_seed-{self.args.random_seed}.h5")
         else:
-            bias_feature_attribution_file_path = osp.join(feature_attribution_folder, f"bias_feature_attribution_{self.args.gradient_method}_kernel_width-{self.args.kernel_width}_random_seed-{self.args.random_seed}.h5")
-            coefs_feature_attribution_file_path = osp.join(feature_attribution_folder, f"coefs_feature_attribution_{self.args.gradient_method}_kernel_width-{self.args.kernel_width}_random_seed-{self.args.random_seed}.h5")
+            coefs_feature_attribution_file_path = osp.join(feature_attribution_folder, f"coefs_feature_attribution_{'test_set' if tst_set else 'analysis_set'}_{self.args.gradient_method}_kernel_width-{self.args.kernel_width}_random_seed-{self.args.random_seed}.h5")
 
-        bias_feature_attributions = None
         coefs_feature_attributions = None
-
         print("Looking for LIME explanations (coefficients and bias) in: ", feature_attribution_folder)
-
         # Check if both files exist and force is not set
-        files_exist = osp.exists(bias_feature_attribution_file_path) and osp.exists(coefs_feature_attribution_file_path)
+        files_exist = osp.exists(coefs_feature_attribution_file_path)
         should_load = files_exist and (not self.args.force or self.args.create_additional_analysis_data)
-
         if should_load:
             print(f"Using precomputed LIME explanations from: {feature_attribution_folder}")
             try:
-                with h5py.File(bias_feature_attribution_file_path, "r") as f:
-                    bias_feature_attributions = f["bias_feature_attribution"][:]
-                bias_feature_attributions = torch.tensor(bias_feature_attributions).float().to(device)
-
                 with h5py.File(coefs_feature_attribution_file_path, "r") as f:
                     coefs_feature_attributions = f["coefs_feature_attribution"][:]
                 coefs_feature_attributions = torch.tensor(coefs_feature_attributions).float().to(device)
                 print("Successfully loaded precomputed explanations.")
             except Exception as e:
                 print(f"Error loading precomputed explanations: {e}. Recomputing...")
-                bias_feature_attributions = None
                 coefs_feature_attributions = None
                 should_load = False # Force recomputation
 
@@ -149,113 +133,46 @@ class LimeCaptumHandler(BaseExplanationMethodHandler):
             print("Precomputed LIME explanations not found or loading failed/forced. Computing explanations for the test set...")
             if not osp.exists(feature_attribution_folder):
                 os.makedirs(feature_attribution_folder)
-
-            coefs, biases = compute_feature_attributions(self.explainer, predict_fn, tst_feat_for_expl_loader)
-
+            coefs = self.compute_feature_attributions(self.explainer, predict_fn, tst_feat_for_expl_loader)
             coefs_feature_attributions = coefs.float().to(device)
-            bias_feature_attributions = biases.float().to(device)
-            print(f"Saving computed bias to: {bias_feature_attribution_file_path}")
-            with h5py.File(bias_feature_attribution_file_path, "w") as f:
-                f.create_dataset("bias_feature_attribution", data=bias_feature_attributions.cpu().numpy())
             print(f"Saving computed coefficients to: {coefs_feature_attribution_file_path}")
             with h5py.File(coefs_feature_attribution_file_path, "w") as f:
                 f.create_dataset("coefs_feature_attribution", data=coefs_feature_attributions.cpu().numpy())
             print("Finished computing and saving explanations.")
-        if coefs_feature_attributions is None or bias_feature_attributions is None:
+        if coefs_feature_attributions is None:
              raise RuntimeError("Failed to load or compute LIME explanations.")
-        return coefs_feature_attributions, bias_feature_attributions
+        return coefs_feature_attributions
     
-    def get_experiment_setting(self, fractions, max_radius):
+
+    def compute_feature_attributions(self, explainer, predict_fn, data_loader_tst, transform = None):
+        coefs_feature_attribution = []
+        for i, batch in enumerate(data_loader_tst):
+            Xs = batch#[0]
+            preds = predict_fn(Xs)
+            if preds.ndim == 1 or preds.shape[1] == 1:
+                coefs, bias = explainer.attribute(Xs, return_input_shape=True)
+                coefs = coefs.float()
+            else:
+                top_labels = torch.argmax(predict_fn(Xs), dim=1).tolist()
+                coefs, bias = explainer.attribute(Xs, target=top_labels, return_input_shape=True)
+                coefs = coefs.float()
+            coefs_feature_attribution.append(coefs)
+            print("computed the first stack of feature_attribution maps")
+        return torch.cat(coefs_feature_attribution, dim=0)
+
+    def get_experiment_setting(self, n_nearest_neighbors):
         df_setting = "dataset_test"
         df_setting += "_val" if self.args.include_val else ""
         df_setting += "_trn" if self.args.include_trn else ""
         if self.args.kernel_width == "default":
-            setting = f"{self.args.method}_{df_setting}_model_type-{self.args.model_type}_dist_measure-{self.args.distance_measure}_random_seed-{self.args.random_seed}_accuracy_fraction"
+            setting = f"{self.args.method}_{df_setting}_model_type-{self.args.model_type}_dist_measure-{self.args.distance_measure}_random_seed-{self.args.random_seed}_difference_vs_kNN"
         else:
-            setting = f"{self.args.method}_{df_setting}_kernel_width-{self.args.kernel_width}_model_type-{self.args.model_type}_dist_measure-{self.args.distance_measure}_random_seed-{self.args.random_seed}_accuracy_fraction"
-        # else:
-        #     setting = f"grad_method-{self.args.gradient_method}_model_type-{self.args.model_type}_dist_measure-{self.args.distance_measure}_accuracy_fraction"
-        if self.args.create_additional_analysis_data:
-            setting = f"downsample-{np.round(self.args.downsample_analysis, 2)}_" + setting
-        if self.args.sample_around_instance:
-            setting = f"sampled_at_point_max_R-{np.round(max_radius, 2)}_" + setting
-        else:
-            setting = f"fractions-0-{np.round(fractions, 2)}_"+setting   
+            setting = f"{self.args.method}_{df_setting}_kernel_width-{self.args.kernel_width}_model_type-{self.args.model_type}_dist_measure-{self.args.distance_measure}_random_seed-{self.args.random_seed}_difference_vs_kNN"
+        setting = f"kNN-1-{np.round(n_nearest_neighbors, 2)}_"+setting
         if self.args.regression:
-            setting = "regression_" + setting
+            setting = setting + "_regression" 
         return setting
     
-    def _compute_local_preds(self, 
-                            batch, 
-                            df_feat_for_expl, 
-                            explanations_chunk, 
-                            predict_fn, ):
-        explanation = explanations_chunk
-        return compute_lime_only_local_preds_for_all_kNN(explanation=explanation,samples_in_ball=df_feat_for_expl)
-    
-    def process_chunk(self, 
-                      batch, 
-                      tst_chunk_dist, 
-                      df_feat_for_expl, 
-                      explanations_chunk, 
-                      predict_fn, 
-                      n_points_in_ball, 
-                      tree, 
-                      max_radius):
-        """
-        Process a single chunk of data for gradient-based methods.
-        """
-        tst_chunk = batch  # For gradient methods, batch is already in the right format
-        proba_output = self.args.model_type in ["LightGBM", "XGBoost", "LightGBM", "pt_frame_xgb", "LogReg"]
-        dist, idx = tree.query(tst_chunk_dist, k=n_points_in_ball, return_distance=True, sort_results=True)
-        dist = np.array(dist)
-        # 1. Get all the kNN samples from the analysis dataset
-        samples_in_ball = [[df_feat_for_expl[idx] for idx in row] for row in idx]
-        samples_in_ball = np.array(samples_in_ball)
-        samples_in_ball = torch.tensor(samples_in_ball)
-
-        if self.args.regression:
-            model_preds, local_preds = compute_lime_all_regressionpreds_for_all_kNN(
-               explanation = explanations_chunk, 
-                predict_fn = predict_fn, 
-                samples_in_ball = samples_in_ball,
-            )
-            return model_preds, local_preds, dist
-        else:
-            with torch.no_grad():
-                predictions = predict_fn(tst_chunk)
-            if not proba_output:
-                if predictions.shape[-1] == 1:
-                    predictions_sm = torch.sigmoid(predictions)
-                    predictions_sm = torch.cat([1 - predictions_sm, predictions_sm], dim=-1)
-                else:
-                    predictions_sm = torch.softmax(predictions, dim=-1)
-            else:
-                if predictions.shape[-1] == 1:
-                    predictions_sm = torch.cat([1 - predictions, predictions], dim=-1)
-                else:
-                    predictions_sm = predictions
-            top_labels = torch.argmax(predictions_sm, dim=1).tolist()
-
-            model_predicted_top_label, model_prob_of_top_label, local_preds_label, local_preds = compute_lime_all_preds_for_all_kNN(
-                explanation = explanations_chunk,
-                predict_fn = predict_fn, 
-                samples_in_ball = samples_in_ball,
-                top_labels = top_labels, 
-                pred_threshold=None,
-                proba_output=proba_output
-            )
-
-            return (
-                model_prob_of_top_label,  
-                model_predicted_top_label,
-                model_prob_of_top_label,  
-                local_preds, 
-                local_preds_label, 
-                local_preds,  
-                dist  
-            )
- 
 
 
 
