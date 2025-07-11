@@ -53,6 +53,13 @@ def main(args):
         print("Kernel width: ", args.kernel_width)
 
     method = args.method if args.method != "gradient_methods" else args.gradient_method
+    if args.method == "shap":
+        if args.model_type in ["LightGBM", "XGBoost", "RandomForest", "CatBoost"]:
+            method = "tree_shap"
+        else:
+            method = "gradient_shap"
+    
+
     explainer_handler = ExplanationMethodHandlerFactory.get_handler(method=method)(args)
     explainer_handler.set_explainer(dataset=trn_feat,
                                     class_names=model_handler.get_class_names(),
@@ -61,7 +68,12 @@ def main(args):
     
     explanations = explainer_handler.compute_explanations(results_path=results_path, 
                                                           predict_fn=predict_fn, 
-                                                          tst_data=tst_dataset)
+                                                          tst_data=tst_dataset,
+                                                          tst_set=True)
+    explanations_analysis_set = explainer_handler.compute_explanations(results_path=results_path, 
+                                                          predict_fn=predict_fn, 
+                                                          tst_data=analysis_dataset,
+                                                          tst_set=False)
     
     validate_distance_measure(args.distance_measure)
     distance_measure = args.distance_measure
@@ -77,46 +89,26 @@ def main(args):
     else:
         tree = BallTree(analysis_feat, metric=distance_measure)
 
-    path_max_dist = os.path.join(args.data_folder, f"{args.setting}_max_distances.npz")
-    if os.path.exists(path_max_dist):
-        max_distances = np.load(path_max_dist)["max_distances"]
-    else:
-        print("Computing max distances for each point in the test set")
-        # Compute max distances for each point in the test set
-        max_distances = np.array([np.max(tree.query(dp.reshape(1, -1), k=len(analysis_feat), return_distance=True)[0]) for dp in tst_feat])
-        np.savez(path_max_dist, max_distances=max_distances)
-        print("Max distances saved to: ", path_max_dist)
-    print("Max distances loaded from: ", path_max_dist)
-
-    max_distance = np.max(max_distances)
-    max_radius = 0.05 * max_distance
-    print("Max radius: ", max_radius)
-    print("Max distance: ", max_distance)
-
-    n_points_in_ball = 500
-    n_points_in_ball = np.min([n_points_in_ball, len(analysis_dataset)])
-    if args.sample_around_instance:
-        n_points_in_ball = 25
-    print("Considering the closest neighbours: ", n_points_in_ball)
     
-    max_fraction = n_points_in_ball/len(analysis_dataset)        
-    experiment_setting = explainer_handler.get_experiment_setting(max_fraction, max_radius)
-    explainer_handler.set_experiment_setting(max_fraction, max_radius)
+    n_nearest_neighbors = 500
+    n_nearest_neighbors = np.min([n_nearest_neighbors, len(analysis_dataset)])
+    print("Considering the closest neighbours up to: ", n_nearest_neighbors)
+    
+    experiment_setting = explainer_handler.set_experiment_setting(n_nearest_neighbors)
     experiment_path = os.path.join(results_path, experiment_setting +".npz")
 
     if os.path.exists(experiment_path) and not args.force:
         print(f"Experiment with setting {experiment_setting} already exists.")
-        exit(-1)
+        # exit(-1)
     else:
         print(f"Experiment with setting {experiment_setting} does not exist yet. Starting analysis.")    
     results_g_x = explainer_handler.run_analysis(
-                     tst_feat_for_expl = tst_dataset, 
-                     tst_feat_for_dist = tst_feat, 
-                     df_feat_for_expl = analysis_dataset, 
+                     tst_dataset = tst_dataset, 
+                     tst_feat = tst_feat, 
+                     analysis_feat = analysis_feat,
                      explanations = explanations, 
-                     n_points_in_ball = n_points_in_ball, 
-                     max_radius = max_radius,
-                     predict_fn = predict_fn, 
+                     explanations_analysis_set = explanations_analysis_set,
+                     n_nearest_neighbors = n_nearest_neighbors, 
                      tree = tree,
                      results_path = results_path,
                      )
