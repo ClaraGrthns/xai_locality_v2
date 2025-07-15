@@ -81,23 +81,20 @@ def process_classification_predictions(preds, proba_output=False):
     predicted_labels = np.argmax(softmaxed, axis=-1)
     return softmaxed, predicted_labels
 
-def run_classification_analysis(args, X_trn, X_tst, ys_trn_preds, y_tst_preds, y_trn, y_tst, 
-                               k_nns, results_path, file_name_wo_file_ending, distance_measures):
+def run_classification_analysis(args, X_trn, ys_trn_preds, y_tst_preds, y_trn, y_tst, 
+                                results_path):
     """Run KNN analysis for classification tasks."""
     proba_output = args.model_type in ["LightGBM", "XGBoost", "pt_frame_xgb", "LogReg"]
     
     ys_trn_softmaxed, ys_trn_predicted_labels = process_classification_predictions(ys_trn_preds, proba_output)
     ys_true_softmaxed, ys_tst_predicted_labels = process_classification_predictions(y_tst_preds, proba_output)
     
-    y_tst_proba_top_label = np.max(ys_true_softmaxed, axis=1) if ys_true_softmaxed.ndim > 1 else ys_true_softmaxed
-    y_tst_logit_top_label = np.max(y_tst_preds, axis=1) if y_tst_preds.ndim > 1 and y_tst_preds.shape[-1] > 1 else y_tst_preds.flatten()
-    
     tree = DecisionTreeClassifier(random_state = args.random_seed).fit(X_trn, ys_trn_predicted_labels)
     print(f"Results for DecisionTreeClassifier on model predictions: depth of tree: {tree.get_depth()}")
-    tree_real_labels = DecisionTreeClassifier(random_state = args.random_seed, max_depth=5).fit(X_trn, y_trn)
-    print(f"Results for DecisionTreeClassifier on true labels: depth of tree: {tree_real_labels.get_depth()}")
+    tree_true_labels = DecisionTreeClassifier(random_state = args.random_seed).fit(X_trn, y_trn)
+    print(f"Results for DecisionTreeClassifier on true labels: depth of tree: {tree_true_labels.get_depth()}")
     res_dict = {"tree_depth_preds":tree.get_depth(),
-                "tree_depth_true_y": tree_real_labels.get_depth()}
+                "tree_depth_true_y": tree_true_labels.get_depth()}
     np.savez(osp.join(results_path, f"dt_surrogate_of_model_{args.model_type}_tree_depth"),
              **res_dict)
 
@@ -115,83 +112,27 @@ def run_classification_analysis(args, X_trn, X_tst, ys_trn_preds, y_tst_preds, y
     print(f"Model performance results saved to {osp.join(results_path, model_experiment_setting)}")
 
 def run_regression_analysis(args, X_trn, X_tst, ys_trn_preds, y_tst_preds, y_trn, y_tst, 
-                          k_nns, results_path, file_name_wo_file_ending, distance_measures):
+                           results_path):
     """Run KNN analysis for regression tasks."""
-    for distance_measure in distance_measures:
-        print(f"\nProcessing with distance measure: {distance_measure}")
-        experiment_setting = f"kNN_regression_on_model_preds_{args.model_type}_dist_measure-{distance_measure}{f"_{args.complexity_model}" if args.complexity_model != "optimize" else ""}"
-        
-        if osp.exists(osp.join(results_path, experiment_setting + ".npz")) and not args.force_overwrite:
-            print(f"Results for the experiment setting {experiment_setting} already exist. Skipping.")
-            continue
-        
-        # Initialize results arrays
-        res_regression = np.zeros((len(k_nns), 3))
-        res_regression_true_y = np.zeros((len(k_nns), 3))
-        
-        for i, k_neighbors in enumerate(k_nns):
-            print(f"Computing kNN with k={k_neighbors} and distance measure={distance_measure}")
-            
-            # Regression on model predictions
-            kNN_regressor = KNeighborsRegressor(n_neighbors=k_neighbors, metric=distance_measure)
-            kNN_regressor.fit(X_trn, ys_trn_preds)
-            regression_preds = kNN_regressor.predict(X_tst)
-            mse, mae, r2 = regression_metrics(y_tst_preds.flatten(), regression_preds.flatten())            
-            res_regression[i] = [mse, mae, r2]
-            
-            # Regression on true labels
-            kNN_regressor_truey = KNeighborsRegressor(n_neighbors=k_neighbors, metric=distance_measure)
-            kNN_regressor_truey.fit(X_trn, y_trn)
-            classifier_preds_true = kNN_regressor_truey.predict(X_tst)
-            mse, mae, r2 = regression_metrics(y_tst.flatten(), classifier_preds_true.flatten())         
-            res_regression_true_y[i] = [mse, mae, r2]   
-    
-        res_dict = {
-            "k_nns": k_nns,
-            "res_regression": res_regression,
-            "res_regression_true_y": res_regression_true_y,
-        }
-        print("Results for kNN regression on model predictions:")
-        print(res_dict["res_regression"])
-
-        print("Results for kNN regression on true labels:")
-        print(res_dict["res_regression_true_y"])
-        np.savez(osp.join(results_path, experiment_setting), **res_dict)
-        print(f"Results saved to {osp.join(results_path, experiment_setting)}")
-
-    print("Compute metrics for regression on model predictions")
-    reg = LinearRegression().fit(X_trn, ys_trn_preds)
-    regression_preds = reg.predict(X_tst)
-    mse, mae, r2 = regression_metrics(y_tst_preds.flatten(), regression_preds.flatten())
-    print(f"Results for LinearRegression on model predictions: MSE={mse}, MAE={mae}, R2={r2}")
-
-    reg = LinearRegression().fit(X_trn, y_trn)
-    regression_preds = reg.predict(X_tst)
-    mse_true_y, mae_true_y, r2_true_y = regression_metrics(y_tst.flatten(), regression_preds.flatten())
-
-    reg = DecisionTreeRegressor(random_state = args.random_seed, max_depth=5).fit(X_trn, ys_trn_preds)
-    regression_preds = reg.predict(X_tst)
+    tree = DecisionTreeRegressor(random_state = args.random_seed).fit(X_trn, ys_trn_preds)
+    regression_preds = tree.predict(X_tst)
     mse_tree, mae_tree, r2_tree = regression_metrics(y_tst_preds.flatten(), regression_preds.flatten())
-    print(f"Results for DecisionTreeRegressor on model predictions: MSE={mse_tree}, MAE={mae_tree}, R2={r2_tree}")
-    reg = DecisionTreeRegressor(random_state = args.random_seed, max_depth=5).fit(X_trn, y_trn)
-    regression_preds = reg.predict(X_tst)
+    print(f"Results for DecisionTreeRegressor on model predictions, tree depth: {tree.get_depth()}: MSE={mse_tree}, MAE={mae_tree}, R2={r2_tree}")
+    tree_true_labels = DecisionTreeRegressor(random_state = args.random_seed).fit(X_trn, y_trn)
+    regression_preds = tree_true_labels.predict(X_tst)
     mse_tree_true_y, mae_tree_true_y, r2_tree_true_y = regression_metrics(y_tst.flatten(), regression_preds.flatten())
-    print(f"Results for DecisionTreeRegressor on true labels: MSE={mse_tree_true_y}, MAE={mae_tree_true_y}, R2={r2_tree_true_y}")
-
-    print(f"Results for LinearRegression on true labels: MSE={mse_true_y}, MAE={mae_true_y}, R2={r2_true_y}")
-    np.savez(osp.join(results_path, f"lr_on_model_preds{args.model_type}{f"_{args.complexity_model}" if args.complexity_model != "optimize" else ""}"),
-             **{"linear_regression_res_true_y": np.array([mse_true_y, mae_true_y, r2_true_y]),
-                "linear_regression_res": np.array([mse, mae, r2]),
-                "decision_tree_regression_res": np.array([mse_tree, mae_tree, r2_tree]),
-                "decision_tree_regression_res_true_y": np.array([mse_tree_true_y, mae_tree_true_y, r2_tree_true_y])})
-    
+    print(f"Results for DecisionTreeRegressor on true labels, tree depth: {tree_true_labels.get_depth()}: MSE={mse_tree_true_y}, MAE={mae_tree_true_y}, R2={r2_tree_true_y}")
+    res_dict = {"tree_depth_preds":tree.get_depth(),
+                "tree_depth_true_y": tree_true_labels.get_depth()}
+    np.savez(osp.join(results_path, f"dt_surrogate_of_model_{args.model_type}_tree_depth"),
+             **res_dict)
     # Save model performance metrics
     print("Computing metrics for the actual model")
     mse, mae, r2 = regression_metrics(y_tst.flatten(), y_tst_preds.flatten())
     print(f"Model performance: MSE={mse}, MAE={mae}, R2={r2}")
     res_model = np.array([mse, mae, r2])
     model_res = {"regression_model": res_model}
-    model_experiment_setting = f"model_regression_performance_{args.model_type}{f"_{args.complexity_model}" if args.complexity_model != "optimize" else ""}"
+    model_experiment_setting = f"model_regression_performance_{args.model_type}"
     np.savez(osp.join(results_path, model_experiment_setting), **model_res)
     print(f"Model performance results saved to {osp.join(results_path, model_experiment_setting)}")
 
@@ -264,13 +205,13 @@ def main(args):
     
     if args.regression:
         run_regression_analysis(
-            args, X_trn, X_tst, ys_trn_preds, y_tst_preds, y_trn, y_tst,
-            results_path, file_name_wo_file_ending, distance_measures
+            args, X_trn, ys_trn_preds, y_tst_preds, y_trn, y_tst,
+            results_path, 
         )
     else:
         run_classification_analysis(
-            args, X_trn, X_tst, ys_trn_preds, y_tst_preds, y_trn, y_tst,
-            results_path, file_name_wo_file_ending, distance_measures
+            args, X_trn, ys_trn_preds, y_tst_preds, y_trn, y_tst,
+            results_path, 
         )
     
     print("time taken: ", (time.time() - start_time)/60, " minutes")

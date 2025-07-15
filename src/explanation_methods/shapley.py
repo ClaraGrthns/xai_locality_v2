@@ -30,7 +30,9 @@ class ShapleyHandler(BaseExplanationMethodHandler):
         return setting
     
     def compute_explanations(self, results_path, predict_fn, tst_data, tst_set=True):
-        tst_feat_for_expl_loader = DataLoader(tst_data, batch_size=self.args.chunk_size, shuffle=False)
+        batch_size = 1 if self._get_shap_variant() == "kernel_shap" else self.args.chunk_size
+
+        tst_feat_for_expl_loader = DataLoader(tst_data, batch_size=batch_size, shuffle=False)
         device = torch.device("cpu")
         feature_attribution_folder = osp.join(results_path, 
                                         "feature_attributions")
@@ -74,21 +76,25 @@ class GradientShapHandler(ShapleyHandler):
     def explain_instance(self, **kwargs):
         input_tensor = kwargs['input']
         target = kwargs.get('target', None)
-        return self.explainer.attribute(input_tensor, baselines=self.baseline, target=target)
+        return self.explainer.attribute(input_tensor, baselines=self.baseline, target=target, n_samples=25)
 
-
-# class KernelShapHandler(ShapleyHandler):
-#     def _get_explainer(self, predict_fn):
-
-#         return shap.KernelExplainer()
-#     def _get_shap_variant(self):
-#         return "kernel_shap"
-#     def explain_instance(self, **kwargs):
-#         input_tensor = kwargs['input']
-#         target = kwargs.get('target', None)
-#         return self.explainer.attribute(input_tensor, baselines=self.baseline, n_samples=200)
 
 class KernelShapHandler(ShapleyHandler):
+    def _get_explainer(self, predict_fn):
+        shap_predict_fn = PredictWrapper(predict_fn)
+        if isinstance(self.train_data, torch.Tensor):
+            data = self.train_data.numpy()
+            data = shap.sample(data, 100)
+        return shap.KernelExplainer(shap_predict_fn, data=data, model_output="raw")
+    def _get_shap_variant(self):
+        return "kernel_shap"
+    def explain_instance(self, **kwargs):
+        input_tensor = kwargs['input']
+        if isinstance(input_tensor, torch.Tensor):
+            input_tensor = input_tensor.numpy()
+        return self.explainer.shap_values(input_tensor)
+
+class CaptumKernelShapHandler(ShapleyHandler):
     def _get_explainer(self, predict_fn):
         return KernelShap(predict_fn)
     def _get_shap_variant(self):
@@ -118,3 +124,21 @@ class TreeShapHandler(ShapleyHandler):
             print(f"Output model: {self.model.predict(input_tensor)}")
             print(f"Model output has NaNs: {np.isnan(self.model.predict(input_tensor)).any()}")
             raise
+
+
+class PredictWrapper:
+    def __init__(self, predict_fn):
+        self.predict_fn = predict_fn
+
+    def __call__(self, X):
+        """
+        Wrapper function that SHAP can call
+        X: numpy array of shape (n_samples, n_features)
+        Returns: numpy array of probabilities
+        """
+        with torch.no_grad():
+            if isinstance(X, np.ndarray):
+                X_tensor = torch.FloatTensor(X)
+            predictions = self.predict_fn(X_tensor)
+            return predictions.numpy()
+

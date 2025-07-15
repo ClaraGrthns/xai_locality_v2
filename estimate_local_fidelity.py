@@ -57,7 +57,7 @@ def main(args):
         if args.model_type in ["LightGBM", "XGBoost", "RandomForest", "CatBoost"]:
             method = "tree_shap"
         else:
-            method = "gradient_shap"
+            method = "gradient_shap" #TODO: change this to kernelshap
     
 
     explainer_handler = ExplanationMethodHandlerFactory.get_handler(method=method)(args)
@@ -89,8 +89,7 @@ def main(args):
     else:
         tree = BallTree(analysis_feat, metric=distance_measure)
 
-    
-    n_nearest_neighbors = 500
+    n_nearest_neighbors = 100
     n_nearest_neighbors = np.min([n_nearest_neighbors, len(analysis_dataset)])
     print("Considering the closest neighbours up to: ", n_nearest_neighbors)
     

@@ -53,7 +53,8 @@ class BaseExplanationMethodHandler:
         else:
             tst_feat, analysis_feat = tst_data.features, analysis_feat.features
 
-        data_loader_tst = DataLoader(tst_data, batch_size=args.chunk_size, shuffle=False)
+        batch_size = args.chunk_size if not args.method == "kernel_shap" else 1
+        data_loader_tst = DataLoader(tst_data, batch_size=batch_size, shuffle=False)
         return tst_feat, analysis_feat, data_loader_tst, analysis_data
     
 
