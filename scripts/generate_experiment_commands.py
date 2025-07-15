@@ -216,15 +216,15 @@ def create_command_file(output_dir, model, setting, method, distance_measure, ke
     file_name_add_on += f"_downsample_analysis" if create_additional_analysis_data else ""
     
     if method == "lime":
-        filename = f"lime_{kernel_width}{distance_suffix}{file_name_add_on}.sh"
+        filename = f"lime_{kernel_width}{file_name_add_on}.sh"
     elif method == "gradient_methods" and gradient_method:
         if gradient_method == "IG":
-            filename = f"gradient_integrated_gradient{distance_suffix}{file_name_add_on}.sh"
+            filename = f"gradient_integrated_gradient_{setting}{file_name_add_on}.sh"
         else:
-            filename = f"gradient_{gradient_method}{distance_suffix}{file_name_add_on}.sh"
+            filename = f"gradient_{gradient_method}_{setting}{file_name_add_on}.sh"
     else:
-        filename = f"{method}{distance_suffix}{file_name_add_on}.sh"
-    
+        filename = f"{method}_{setting}{file_name_add_on}.sh"
+
     # Write command to file
     file_path = os.path.join(model_dir, filename)
     with open(file_path, "w") as f:
