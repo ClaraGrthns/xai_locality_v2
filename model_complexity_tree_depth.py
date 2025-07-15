@@ -95,7 +95,7 @@ def run_classification_analysis(args, X_trn, ys_trn_preds, y_tst_preds, y_trn, y
     print(f"Results for DecisionTreeClassifier on true labels: depth of tree: {tree_true_labels.get_depth()}")
     res_dict = {"tree_depth_preds":tree.get_depth(),
                 "tree_depth_true_y": tree_true_labels.get_depth()}
-    np.savez(osp.join(results_path, f"dt_surrogate_of_model_{args.model_type}_tree_depth"),
+    np.savez(osp.join(results_path,  f"model_complexity_depth_{args.model_type}_{args.setting}"),
              **res_dict)
 
     # Save model performance metrics
@@ -106,7 +106,7 @@ def run_classification_analysis(args, X_trn, ys_trn_preds, y_tst_preds, y_trn, y
     res_model = np.array([auroc, accuracy, precision, recall, f1])
     
     model_res = {"classification_model": res_model}
-    model_experiment_setting = f"model_performance_{args.model_type}_true_labels"
+    model_experiment_setting = f"model_performance_{args.model_type}_{args.setting}_true_labels"
 
     np.savez(osp.join(results_path, model_experiment_setting), **model_res)
     print(f"Model performance results saved to {osp.join(results_path, model_experiment_setting)}")

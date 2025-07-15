@@ -179,9 +179,7 @@ def check_model_exists(args):
 def get_data_path(args):
     """Get data path based on model type and dataset."""
     if args.use_benchmark:
-        if args.model_type in CUSTOM_MODELS:
-            return osp.join(args.data_folder, f"LightGBM_{args.setting}_normalized_data.pt")
-        return osp.join(args.data_folder, f"{args.model_type}_{args.setting}_normalized_data.pt")
+        return osp.join(args.data_folder, f"{args.setting}_normalized_data.pt")
     else:
         # For synthetic data, check if it's ExcelFormer which has a special path format
         is_ExcelFormer_str = "ExcelFormer_" if args.model_type == 'ExcelFormer' else ""
@@ -196,15 +194,8 @@ def get_results_path(args, step):
         sub_directory = "regression_synthetic_data"
     else:
         sub_directory = "synthetic_data"
-    if step == "knn":
-        results_folder = args.results_folder
-        return osp.join(results_folder, 
-                        "knn_model_preds", 
-                        args.model_type, 
-                        sub_directory, 
-                        args.setting)
-    elif step == "complexity":
-        return osp.join(args.results_folder,
+    if step == "complexity":
+        return osp.join(args.results_folder, 
                         "model_complexity", 
                         args.model_type, 
                         sub_directory, 
@@ -224,7 +215,7 @@ def get_results_path(args, step):
                         args.model_type, 
                         sub_directory , 
                         f"{args.model_type}_{args.setting}_results.pt")
-    elif step == "fraction":
+    elif step == "main_analysis":
         # For fraction analysis, the path depends on the explanation method
         method_subdir = args.gradient_method if args.method == "gradient_methods" else ""
         if args.method == "gradient_methods":
@@ -265,11 +256,11 @@ def train_model(args):
         else:
             main_deep_models(train_args)
 
-def run_knn_analysis(args):
+def run_model_complexity_accuracy_of_surrogate(args):
     """Run KNN analysis on model predictions."""
     print("Running KNN analysis on model predictions...")
     knn_args = copy.deepcopy(args)
-    knn_args.results_path = get_results_path(args, "knn")
+    knn_args.results_path = get_results_path(args, "complexity")
     main_knn_analyzer(knn_args)
 
 def run_model_complexity_tree_depth(args):
@@ -278,11 +269,11 @@ def run_model_complexity_tree_depth(args):
     complexity_args.results_path = get_results_path(args, "complexity")
     main_model_complexity_tree_depth(complexity_args)
 
-def run_knn_vs_local_model_analysis(args):
+def run_main_analysis(args):
     """Run fraction vs accuracy analysis."""
     print("Running fraction vs accuracy analysis...")
     fraction_args = copy.deepcopy(args)
-    fraction_args.results_path = get_results_path(args, "fraction")
+    fraction_args.results_path = get_results_path(args, "main_analysis")
     if not hasattr(fraction_args, 'distance_measure') or not fraction_args.distance_measure:
         fraction_args.distance_measure = fraction_args.distance_measures[0] if fraction_args.distance_measures else "euclidean"
     main_knn_vs_accuracy(fraction_args)
@@ -296,7 +287,8 @@ def main():
     args.force_overwrite = True #TODO: Delete
     args.use_custom_generator = True  # Default to using custom generator in debug mode
     args.include_trn = False
-    args.data_folder = "/home/grotehans/xai_locality/data" #TODO: Change this to your data directory
+    
+    
     if args.debug:
         args.model_type = "LightGBM"
         args.setting = "jannis"
@@ -319,6 +311,7 @@ def main():
     
     if args.model_folder is None:
         args.model_folder = os.path.join(BASEDIR, "pretrained_models")
+
     if args.data_folder is None:
         args.data_folder = os.path.join(BASEDIR, "data")
     if not args.use_benchmark:
@@ -351,17 +344,15 @@ def main():
         print("Starting KNN analysis...")
         start_time = time.time()
         args.downsample_analysis = 1.0
-        run_knn_analysis(args)
-        print(f"model complexity with knn analysis completed in {(time.time() - start_time)/60:.2f} minutes.")
+        run_model_complexity_accuracy_of_surrogate(args)
+        print(f"KNN analysis completed in {(time.time() - start_time)/60:.2f} minutes.")
         run_model_complexity_tree_depth(args)
         print("Model complexity analysis on tree depth completed.")
-
-
 
     if not args.skip_fraction:
         print("Starting fraction vs accuracy analysis...")
         start_time = time.time()
-        run_knn_vs_local_model_analysis(args)
+        run_main_analysis(args)
         print(f"Fraction vs accuracy analysis completed in {(time.time() - start_time):.2f} seconds.")
     print("Experiment complete!")
 

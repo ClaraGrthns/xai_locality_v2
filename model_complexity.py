@@ -59,7 +59,7 @@ def compute_predictions(model_handler, data, loader, save_path, prefix="train", 
             predictions = model_handler.predict_fn(data)
             if isinstance(predictions, torch.Tensor):
                 predictions = predictions.numpy()
-    np.save(save_path, predictions)
+    # np.save(save_path, predictions)
     print(f"{prefix.capitalize()} predictions saved to {save_path}")
     return predictions
 
@@ -91,177 +91,174 @@ def run_classification_analysis(args, X_trn, X_tst, ys_trn_preds, y_tst_preds, y
     
     y_tst_proba_top_label = np.max(ys_true_softmaxed, axis=1) if ys_true_softmaxed.ndim > 1 else ys_true_softmaxed
     y_tst_logit_top_label = np.max(y_tst_preds, axis=1) if y_tst_preds.ndim > 1 and y_tst_preds.shape[-1] > 1 else y_tst_preds.flatten()
-    
+
+    best_knn_acc = -1
+    best_knn_metrics = None
+    best_knn_acc_true = -1
+    best_knn_metrics_true = None
+    print("Metrics for the predicted labels:")
+
     for distance_measure in distance_measures:
         print(f"\nProcessing with distance measure: {distance_measure}")
-        
-        
-        # experiment_setting = f"kNN_on_model_preds_{args.model_type}_dist_measure-{distance_measure}_random_seed-{args.random_seed}"
-        experiment_setting = f"kNN_on_model_preds_{args.model_type}_dist_measure-{distance_measure}{f"_{args.complexity_model}" if args.complexity_model != "optimize" else ""}"
-        if osp.exists(osp.join(results_path, experiment_setting + ".npz")) and not args.force_overwrite:
-            print(f"Results for the experiment setting {experiment_setting} already exist. Skipping.")
-            continue
-        
-        res_classification = np.zeros((len(k_nns), 4))
-        res_proba_regression = np.zeros((len(k_nns), 3))
-        res_logit_regression = np.zeros((len(k_nns), 3))
-        res_classification_true_labels = np.zeros((len(k_nns), 4))
-        
-        for i, k_neighbors in enumerate(k_nns):
+
+        for k_neighbors in k_nns:
             print(f"Computing kNN with k={k_neighbors} and distance measure={distance_measure}")
-            
-            # Classification on model predictions
+            # kNN on model predictions
             classifier = KNeighborsClassifier(n_neighbors=k_neighbors, metric=distance_measure)
             classifier.fit(X_trn, ys_trn_predicted_labels)
             classifier_preds = classifier.predict(X_tst)
             _, accuracy, precision, recall, f1 = binary_classification_metrics(
                 ys_tst_predicted_labels, classifier_preds, None)
-            res_classification[i] = [accuracy, precision, recall, f1]
-            
-            # Classification on true labels
+            if accuracy > best_knn_acc:
+                best_knn_acc = accuracy
+                best_knn_metrics = [accuracy, precision, recall, f1, k_neighbors]
+
+            # kNN on true labels
             classifier = KNeighborsClassifier(n_neighbors=k_neighbors, metric=distance_measure)
             classifier.fit(X_trn, y_trn)
             classifier_preds = classifier.predict(X_tst)
-            _, accuracy, precision, recall, f1 = binary_classification_metrics(
+            _, accuracy_true, precision_true, recall_true, f1_true = binary_classification_metrics(
                 y_tst, classifier_preds, None)
-            res_classification_true_labels[i] = [accuracy, precision, recall, f1]
-        # Save results for this distance measure
-        res_dict = {
-            "k_nns": k_nns,
-            "classification": res_classification,
-            "proba_regression": res_proba_regression,
-            "logit_regression": res_logit_regression,
-            "classification_true_labels": res_classification_true_labels
-        }
-        np.savez(osp.join(results_path, experiment_setting), **res_dict)
-        print(f"Results saved to {osp.join(results_path, experiment_setting)}")
-    print("Results for kNN classification on model predictions:")
-    print(np.array(res_classification).max(axis=0))
-    print("Results for kNN classification on true labels:")
-    print(np.array(res_classification_true_labels).max(axis=0))
-    print("Computing metrics for regression on model predictions")
+            if accuracy_true > best_knn_acc_true:
+                best_knn_acc_true = accuracy_true
+                best_knn_metrics_true = [accuracy_true, precision_true, recall_true, f1_true, k_neighbors]
+
+    # Logistic Regression on predicted labels
     reg = LogisticRegression().fit(X_trn, ys_trn_predicted_labels)
     lr_preds = reg.predict(X_tst)
-    auroc, accuracy, precision, recall, f1 = binary_classification_metrics(
+    auroc_lr, acc_lr, prec_lr, rec_lr, f1_lr = binary_classification_metrics(
         ys_tst_predicted_labels.flatten(), lr_preds.flatten(), None)
-    print(f"Results for LogisticRegression on model predictions: AUROC={auroc}, Accuracy={accuracy}, Precision={precision}, Recall={recall}, F1={f1}")
-    
+
+    # Decision Tree on predicted labels
+    dt = DecisionTreeClassifier(random_state=args.random_seed, max_depth=5).fit(X_trn, ys_trn_predicted_labels)
+    dt_preds = dt.predict(X_tst)
+    auroc_dt, acc_dt, prec_dt, rec_dt, f1_dt = binary_classification_metrics(
+        ys_tst_predicted_labels.flatten(), dt_preds.flatten(), None)
+
+    # Save all results in one file
+    results = {
+        "best_knn_on_preds": np.array(best_knn_metrics),  # [accuracy, precision, recall, f1, k]
+        "logistic_regression_on_preds": np.array([auroc_lr, acc_lr, prec_lr, rec_lr, f1_lr]),
+        "decision_tree_on_preds": np.array([auroc_dt, acc_dt, prec_dt, rec_dt, f1_dt]),
+    }
+    np.savez(osp.join(results_path, f"model_complexity_accuracy_{args.model_type}_{args.setting}"), **results)
+    print(f"Summary results saved to {osp.join(results_path, f'model_complexity_accuracy_{args.model_type}_{args.setting}.npz')}")
+
+    print(f"Best kNN on model predictions: Accuracy={best_knn_acc}, Precision={best_knn_metrics[1]}, Recall={best_knn_metrics[2]}, F1={best_knn_metrics[3]}, k={best_knn_metrics[4]}")
+    print(f"Best logistic regression on model predictions: AUROC={auroc_lr}, Accuracy={acc_lr}, Precision={prec_lr}, Recall={rec_lr}, F1={f1_lr}")
+    print(f"Best decision tree on model predictions: AUROC={auroc_dt}, Accuracy={acc_dt}, Precision={prec_dt}, Recall={rec_dt}, F1={f1_dt}")
+
+    print("Metrics for the true labels:")
+
     reg = LogisticRegression().fit(X_trn, y_trn)
     lr_preds = reg.predict(X_tst)
     auroc_true_y, accuracy_true_y, precision_true_y, recall_true_y, f1_true_y = binary_classification_metrics(
         y_tst.flatten(), lr_preds.flatten(), None)
     print(f"Results for LogisticRegression on true labels: AUROC={auroc_true_y}, Accuracy={accuracy_true_y}, Precision={precision_true_y}, Recall={recall_true_y}, F1={f1_true_y}")
-
-    reg = DecisionTreeClassifier(random_state = args.random_seed, max_depth=5).fit(X_trn, ys_trn_predicted_labels)
-    dt_preds = reg.predict(X_tst)
-    auroc_dt, accuracy_dt, precision_dt, recall_dt, f1_dt = binary_classification_metrics(
-        ys_tst_predicted_labels.flatten(), dt_preds.flatten(), None)
-    print(f"Results for DecisionTreeClassifier on model predictions: AUROC={auroc_dt}, Accuracy={accuracy_dt}, Precision={precision_dt}, Recall={recall_dt}, F1={f1_dt}")
+    
     reg = DecisionTreeClassifier(random_state = args.random_seed, max_depth=5).fit(X_trn, y_trn)
     dt_preds = reg.predict(X_tst)
     auroc_dt_true_y, accuracy_dt_true_y, precision_dt_true_y, recall_dt_true_y, f1_dt_true_y = binary_classification_metrics(
         y_tst.flatten(), dt_preds.flatten(), None)
     print(f"Results for DecisionTreeClassifier on true labels: AUROC={auroc_dt_true_y}, Accuracy={accuracy_dt_true_y}, Precision={precision_dt_true_y}, Recall={recall_dt_true_y}, F1={f1_dt_true_y}")
-    
-    np.savez(osp.join(results_path, f"lr_on_model_preds{args.model_type}{f"_{args.complexity_model}" if args.complexity_model != "optimize" else ""}"),#random_state = args.random_seed
-             **{"log_regression_res": np.array([auroc, accuracy, precision, recall, f1]),
-                "log_regression_true_y_res": np.array([auroc_true_y, accuracy_true_y, precision_true_y, recall_true_y, f1_true_y ]),
-                "decision_tree_classification_res": np.array([auroc_dt, accuracy_dt, precision_dt, recall_dt, f1_dt]),
-                "decision_tree_classification_true_y_res": np.array([auroc_dt_true_y, accuracy_dt_true_y, precision_dt_true_y, recall_dt_true_y, f1_dt_true_y])})
 
-    # Save model performance metrics
-    print("Computing metrics for the actual model")
-    auroc, accuracy, precision, recall, f1 = binary_classification_metrics(
+    auroc_model, accuracy_model, precision_model, recall_model, f1_model = binary_classification_metrics(
         y_tst, ys_tst_predicted_labels, ys_true_softmaxed[:, 1])
-    print(f"Model performance: AUROC={auroc}, Accuracy={accuracy}, Precision={precision}, Recall={recall}, F1={f1}")
-    res_model = np.array([auroc, accuracy, precision, recall, f1])
-    
-    model_res = {"classification_model": res_model}
-    model_experiment_setting = f"model_performance_{args.model_type}{f"_{args.complexity_model}" if args.complexity_model != "optimize" else ""}"
-    
-    np.savez(osp.join(results_path, model_experiment_setting), **model_res)
-    print(f"Model performance results saved to {osp.join(results_path, model_experiment_setting)}")
+    print(f"Model performance: AUROC={auroc_model}, Accuracy={accuracy_model}, Precision={precision_model}, Recall={recall_model}, F1={f1_model}")
+
+    results_true_labels = {
+        "k_nns": k_nns,
+        "best_knn_on_true": np.array(best_knn_metrics_true),  # [accuracy, precision, recall, f1, k]
+        "logistic_regression_on_true_y": np.array([auroc_true_y, accuracy_true_y, precision_true_y, recall_true_y, f1_true_y]),
+        "decision_tree_on_true_y": np.array([auroc_dt_true_y, accuracy_dt_true_y, precision_dt_true_y, recall_dt_true_y, f1_dt_true_y]),
+        "model_performance": np.array([auroc_model, accuracy_model, precision_model, recall_model, f1_model]),
+    }
+    np.savez(osp.join(results_path, f"{args.model_type}_{args.setting}_true_labels"), **results_true_labels)
+
 
 def run_regression_analysis(args, X_trn, X_tst, ys_trn_preds, y_tst_preds, y_trn, y_tst, 
                           k_nns, results_path, file_name_wo_file_ending, distance_measures):
-    """Run KNN analysis for regression tasks."""
+    """Run KNN analysis for regression tasks, saving only best kNN MSE and all model-on-predicted-labels results in one file."""
     for distance_measure in distance_measures:
         print(f"\nProcessing with distance measure: {distance_measure}")
-        experiment_setting = f"kNN_regression_on_model_preds_{args.model_type}_dist_measure-{distance_measure}{f"_{args.complexity_model}" if args.complexity_model != "optimize" else ""}"
-        
-        if osp.exists(osp.join(results_path, experiment_setting + ".npz")) and not args.force_overwrite:
-            print(f"Results for the experiment setting {experiment_setting} already exist. Skipping.")
-            continue
-        
-        # Initialize results arrays
-        res_regression = np.zeros((len(k_nns), 3))
-        res_regression_true_y = np.zeros((len(k_nns), 3))
-        
-        for i, k_neighbors in enumerate(k_nns):
+
+        best_knn_r2 = -np.inf
+        best_knn_metrics = None
+        best_knn_r2_true = -np.inf
+        best_knn_metrics_true = None
+
+        for k_neighbors in k_nns:
             print(f"Computing kNN with k={k_neighbors} and distance measure={distance_measure}")
-            
+
             # Regression on model predictions
             kNN_regressor = KNeighborsRegressor(n_neighbors=k_neighbors, metric=distance_measure)
             kNN_regressor.fit(X_trn, ys_trn_preds)
             regression_preds = kNN_regressor.predict(X_tst)
-            mse, mae, r2 = regression_metrics(y_tst_preds.flatten(), regression_preds.flatten())            
-            res_regression[i] = [mse, mae, r2]
-            
+            mse, mae, r2 = regression_metrics(y_tst_preds.flatten(), regression_preds.flatten())
+            if r2 > best_knn_r2:
+                best_knn_r2 = r2
+                best_knn_metrics = [mse, mae, r2, k_neighbors]
+
             # Regression on true labels
             kNN_regressor_truey = KNeighborsRegressor(n_neighbors=k_neighbors, metric=distance_measure)
             kNN_regressor_truey.fit(X_trn, y_trn)
-            classifier_preds_true = kNN_regressor_truey.predict(X_tst)
-            mse, mae, r2 = regression_metrics(y_tst.flatten(), classifier_preds_true.flatten())         
-            res_regression_true_y[i] = [mse, mae, r2]   
-    
-        res_dict = {
-            "k_nns": k_nns,
-            "res_regression": res_regression,
-            "res_regression_true_y": res_regression_true_y,
+            regression_preds_true = kNN_regressor_truey.predict(X_tst)
+            mse_true, mae_true, r2_true = regression_metrics(y_tst.flatten(), regression_preds_true.flatten())
+            if r2_true > best_knn_r2_true:
+                best_knn_r2_true = r2_true
+                best_knn_metrics_true = [mse_true, mae_true, r2_true, k_neighbors]
+
+        # Linear Regression on predicted labels
+        reg = LinearRegression().fit(X_trn, ys_trn_preds)
+        regression_preds = reg.predict(X_tst)
+        mse_lr, mae_lr, r2_lr = regression_metrics(y_tst_preds.flatten(), regression_preds.flatten())
+
+        # Decision Tree Regression on predicted labels
+        dt = DecisionTreeRegressor(random_state=args.random_seed, max_depth=5).fit(X_trn, ys_trn_preds)
+        dt_preds = dt.predict(X_tst)
+        mse_dt, mae_dt, r2_dt = regression_metrics(y_tst_preds.flatten(), dt_preds.flatten())
+
+        # Save all results in one file
+        results = {
+            "best_knn_on_preds": np.array(best_knn_metrics),  # [mse, mae, r2, k]
+            "linear_regression_on_preds": np.array([mse_lr, mae_lr, r2_lr]),
+            "decision_tree_on_preds": np.array([mse_dt, mae_dt, r2_dt]),
         }
-        print("Results for kNN regression on model predictions:")
-        print(res_dict["res_regression"])
+        np.savez(osp.join(results_path, f"model_complexity_regression_{args.model_type}_{args.setting}"), **results)
+        print(f"Summary results saved to {osp.join(results_path, f'model_complexity_regression_{args.model_type}_{args.setting}.npz')}")
 
-        print("Results for kNN regression on true labels:")
-        print(res_dict["res_regression_true_y"])
-        np.savez(osp.join(results_path, experiment_setting), **res_dict)
-        print(f"Results saved to {osp.join(results_path, experiment_setting)}")
+        print(f"Best kNN on model predictions: MSE={best_knn_metrics[0]}, MAE={best_knn_metrics[1]}, R2={best_knn_metrics[2]}, k={best_knn_metrics[3]}")
+        print(f"Best kNN on true labels: MSE={best_knn_metrics_true[0]}, MAE={best_knn_metrics_true[1]}, R2={best_knn_metrics_true[2]}, k={best_knn_metrics_true[3]}")
+        print(f"LinearRegression on model predictions: MSE={mse_lr}, MAE={mae_lr}, R2={r2_lr}")
+        print(f"DecisionTreeRegressor on model predictions: MSE={mse_dt}, MAE={mae_dt}, R2={r2_dt}")
 
-    print("Compute metrics for regression on model predictions")
-    reg = LinearRegression().fit(X_trn, ys_trn_preds)
-    regression_preds = reg.predict(X_tst)
-    mse, mae, r2 = regression_metrics(y_tst_preds.flatten(), regression_preds.flatten())
-    print(f"Results for LinearRegression on model predictions: MSE={mse}, MAE={mae}, R2={r2}")
+        # Optionally, you can also print or save results for true labels with LinearRegression and DecisionTreeRegressor if needed.
+        print("Metrics for the true labels:")
 
-    reg = LinearRegression().fit(X_trn, y_trn)
-    regression_preds = reg.predict(X_tst)
-    mse_true_y, mae_true_y, r2_true_y = regression_metrics(y_tst.flatten(), regression_preds.flatten())
+        # Linear Regression on true labels
+        reg = LinearRegression().fit(X_trn, y_trn)
+        regression_preds_true_lr = reg.predict(X_tst)
+        mse_true_lr, mae_true_lr, r2_true_lr = regression_metrics(y_tst.flatten(), regression_preds_true_lr.flatten())
+        print(f"Results for LinearRegression on true labels: MSE={mse_true_lr}, MAE={mae_true_lr}, R2={r2_true_lr}")
 
-    reg = DecisionTreeRegressor(random_state = args.random_seed, max_depth=5).fit(X_trn, ys_trn_preds)
-    regression_preds = reg.predict(X_tst)
-    mse_tree, mae_tree, r2_tree = regression_metrics(y_tst_preds.flatten(), regression_preds.flatten())
-    print(f"Results for DecisionTreeRegressor on model predictions: MSE={mse_tree}, MAE={mae_tree}, R2={r2_tree}")
-    reg = DecisionTreeRegressor(random_state = args.random_seed, max_depth=5).fit(X_trn, y_trn)
-    regression_preds = reg.predict(X_tst)
-    mse_tree_true_y, mae_tree_true_y, r2_tree_true_y = regression_metrics(y_tst.flatten(), regression_preds.flatten())
-    print(f"Results for DecisionTreeRegressor on true labels: MSE={mse_tree_true_y}, MAE={mae_tree_true_y}, R2={r2_tree_true_y}")
+        # Decision Tree Regression on true labels
+        dt = DecisionTreeRegressor(random_state=args.random_seed, max_depth=5).fit(X_trn, y_trn)
+        regression_preds_true_dt = dt.predict(X_tst)
+        mse_true_dt, mae_true_dt, r2_true_dt = regression_metrics(y_tst.flatten(), regression_preds_true_dt.flatten())
+        print(f"Results for DecisionTreeRegressor on true labels: MSE={mse_true_dt}, MAE={mae_true_dt}, R2={r2_true_dt}")
 
-    print(f"Results for LinearRegression on true labels: MSE={mse_true_y}, MAE={mae_true_y}, R2={r2_true_y}")
-    np.savez(osp.join(results_path, f"lr_on_model_preds{args.model_type}{f"_{args.complexity_model}" if args.complexity_model != "optimize" else ""}"),
-             **{"linear_regression_res_true_y": np.array([mse_true_y, mae_true_y, r2_true_y]),
-                "linear_regression_res": np.array([mse, mae, r2]),
-                "decision_tree_regression_res": np.array([mse_tree, mae_tree, r2_tree]),
-                "decision_tree_regression_res_true_y": np.array([mse_tree_true_y, mae_tree_true_y, r2_tree_true_y])})
-    
-    # Save model performance metrics
-    print("Computing metrics for the actual model")
-    mse, mae, r2 = regression_metrics(y_tst.flatten(), y_tst_preds.flatten())
-    print(f"Model performance: MSE={mse}, MAE={mae}, R2={r2}")
-    res_model = np.array([mse, mae, r2])
-    model_res = {"regression_model": res_model}
-    model_experiment_setting = f"model_regression_performance_{args.model_type}{f"_{args.complexity_model}" if args.complexity_model != "optimize" else ""}"
-    np.savez(osp.join(results_path, model_experiment_setting), **model_res)
-    print(f"Model performance results saved to {osp.join(results_path, model_experiment_setting)}")
+        # Model performance (predictions vs. ground truth)
+        mse_model, mae_model, r2_model = regression_metrics(y_tst.flatten(), y_tst_preds.flatten())
+        print(f"Model performance: MSE={mse_model}, MAE={mae_model}, R2={r2_model}")
+
+        results_true_labels = {
+            "k_nns": k_nns,
+            "best_knn_on_true": np.array(best_knn_metrics_true),  # [mse, mae, r2, k]
+            "linear_regression_on_true_y": np.array([mse_true_lr, mae_true_lr, r2_true_lr]),
+            "decision_tree_on_true_y": np.array([mse_true_dt, mae_true_dt, r2_true_dt]),
+            "model_performance": np.array([mse_model, mae_model, r2_model]),
+        }
+        np.savez(osp.join(results_path, f"{args.model_type}_{args.setting}_true_labels_regression"), **results_true_labels)
 
 def main(args):
     print("Starting the experiment with the following arguments: ", args)
