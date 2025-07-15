@@ -314,6 +314,8 @@ def prepare_data_and_models(args):
         )
         
     col_names_dict = train_tensor_frame.col_names_dict
+    if not osp.exists(args.data_folder):
+        os.makedirs(args.data_folder)
     print(f"save data under: {os.path.join(args.data_folder, f'{args.model_type}_{dataset_name}_normalized_data_col_names_dict.pt')}")
     torch.save(col_names_dict, 
             os.path.join(args.data_folder, f"{args.model_type}_{dataset_name}_normalized_data_col_names_dict.pt"))

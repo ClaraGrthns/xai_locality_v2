@@ -123,7 +123,7 @@ def parse_args():
     parser.add_argument("--n_samples_around_instance",type=int, default = 100, help="Number of samples around instance instead of kNN")
     
     # Process steps control
-    parser.add_argument("--skip_knn", action="store_true", help="Skip KNN analysis")
+    parser.add_argument("--skip_model_complexity", action="store_true", help="Skip KNN analysis")
     parser.add_argument("--skip_fraction", action="store_true", help="Skip fraction vs accuracy analysis")
     parser.add_argument("--force", action="store_true", help="Force overwrite existing results")
     
@@ -197,7 +197,7 @@ def get_results_path(args, step):
     else:
         sub_directory = "synthetic_data"
     if step == "knn":
-        results_folder = "/home/grotehans/xai_locality/results" # TODO: Change this to args.results_folder
+        results_folder = args.results_folder
         return osp.join(results_folder, 
                         "knn_model_preds", 
                         args.model_type, 
@@ -332,7 +332,7 @@ def main():
     args.model_path = model_path
     args.data_path = get_data_path(args)
     args.coef = False
-    args.skip_knn = True if not args.force_training or not model_exists else False
+    args.skip_model_complexity = True if not args.force_training or not model_exists else False
     args.skip_fraction = False #TODO: Delete
 
     print(args)
@@ -347,12 +347,16 @@ def main():
         print(f"Model already exists at {args.model_path}")
     
 
-    if not args.skip_knn:
+    if not args.skip_model_complexity:
         print("Starting KNN analysis...")
         start_time = time.time()
         args.downsample_analysis = 1.0
         run_knn_analysis(args)
-        print(f"KNN analysis completed in {(time.time() - start_time)/60:.2f} minutes.")
+        print(f"model complexity with knn analysis completed in {(time.time() - start_time)/60:.2f} minutes.")
+        run_model_complexity_tree_depth(args)
+        print("Model complexity analysis on tree depth completed.")
+
+
 
     if not args.skip_fraction:
         print("Starting fraction vs accuracy analysis...")

@@ -323,12 +323,7 @@ def main(args):
     else:
         raise ValueError("You must provide either data_folder and setting or data_path.")
 
-    distance_measures = args.distance_measures if args.distance_measures else []
-    if args.distance_measure and args.distance_measure not in distance_measures:
-        distance_measures.append(args.distance_measure)
-    
     distance_measures = ["euclidean"]
-    
     print(f"Processing with distance measures: {distance_measures}")
     
     if args.regression:
