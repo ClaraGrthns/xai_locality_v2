@@ -326,6 +326,7 @@ def main():
     args.data_path = get_data_path(args)
     args.coef = False
     args.skip_model_complexity = True if not args.force_training or not model_exists else False
+    args.skip_model_complexity = args.random_seed != 42
     args.skip_fraction = False #TODO: Delete
 
     print(args)

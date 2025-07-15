@@ -36,11 +36,11 @@ class TorchFrameHandler(BaseModelHandler):
             print(f"Failed to load model from {self.model_path}, trying fallback path: {fallback_path}")
             best_model_cfg_dict = torch.load(fallback_path, map_location=torch.device('cpu'))
         self.col_names_dict = torch.load(
-            os.path.join(data_folder, file_name_wo_file_ending + "_col_names_dict.pt"), 
+            os.path.join(data_folder, f"{self.args.model_type}_"+file_name_wo_file_ending + "_col_names_dict.pt"), 
             map_location=torch.device('cpu')
         )
         self.col_stats = torch.load(
-            os.path.join(data_folder, file_name_wo_file_ending + "_col_stats.pt"), 
+            os.path.join(data_folder, f"{self.args.model_type}_"+file_name_wo_file_ending + "_col_stats.pt"), 
             map_location=torch.device('cpu')
         )
 
