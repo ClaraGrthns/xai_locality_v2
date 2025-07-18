@@ -30,11 +30,8 @@ class PTFrame_LightGBMHandler(BaseModelHandler):
         tst_feat = np.array(tst_feat)
         val_feat = np.array(val_feat)
         trn_feat = np.array(trn_feat)
-        tst_feat, analysis_feat, tst_dataset, analysis_dataset = self._split_data_in_tst_analysis(tst_feat,
-                                                                                                val_feat,
-                                                                                                trn_feat)
-        return trn_feat, tst_feat, analysis_feat, tst_dataset, analysis_dataset
-  
+        return trn_feat, val_feat, tst_feat
+
     def predict_fn(self, X):
         if isinstance(X, torch.Tensor):
             X = X.numpy()

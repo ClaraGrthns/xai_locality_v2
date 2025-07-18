@@ -13,7 +13,7 @@ def determine_resources(script_content):
         "cpus_per_task": "8",
         "mem_per_cpu": "8G",
         "gres": "gpu:0",
-        "time": "1:00:00"
+        "time": "3:00:00"
     }
     if "force_training" in script_content:
         resources["gres"] = "gpu:1"
@@ -22,23 +22,6 @@ def determine_resources(script_content):
             if model in script_content:
                 resources["time"] = "5:00:00" if "higgs" in script_content else "4:00:00"
                 break
-    if "LightGBM" in script_content:
-        resources["gres"] = "gpu:0"
-        resources["time"] = "2:00:00"
-
-    
-    # Check for lightweight models
-    lightweight_models = ["LogReg", "LinReg", "MLP", "LightGBM"]
-    for model in lightweight_models:
-        if model in script_content:
-            resources["partition"] = "day"
-            resources["time"] = "1:00:00"
-            resources["mem_per_cpu"] = "8G"
-            
-            if model == "LogReg" or model == "LightGBM":
-                resources["gres"] = "gpu:0"
-            # MLP still needs GPU so we keep gpu:1 for it
-            return resources
     
     return resources
 
@@ -127,7 +110,7 @@ def main():
     # Find the experiment_commands directory
     base_dir = Path(__file__).parent.parent  # xai_locality root
     experiment_dir = os.path.join(base_dir, 'commands_sbach_files', 'experiment_commands')
-    # experiment_dir = "/home/grotehans/xai_locality_v2/commands_sbach_files/experiment_commands/shap/LightGBM"
+    experiment_dir = "/home/grotehans/xai_locality_v2/commands_sbach_files/experiment_commands/shap/LightGBM"
     if not os.path.exists(experiment_dir):
         print(f"Directory {experiment_dir} not found")
         return

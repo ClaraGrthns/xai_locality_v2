@@ -18,7 +18,8 @@ class GradientMethodHandler(BaseExplanationMethodHandler):
         device = torch.device("cpu")
         saliency_map_folder = osp.join(results_path, 
                                         "saliency_maps")
-        saliency_map_file_path = osp.join(saliency_map_folder, f"saliency_map_{'test_set' if tst_set else 'analysis_set'}_{self.args.gradient_method}_random_seed-{self.args.random_seed}.h5")
+        
+        saliency_map_file_path = osp.join(saliency_map_folder, f"saliency_map_{self.args.gradient_method}.h5")
 
         print("Looking for saliency maps in: ", saliency_map_file_path)
         if osp.exists(saliency_map_file_path) and (not self.args.force): 

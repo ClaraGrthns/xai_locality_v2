@@ -30,10 +30,7 @@ class PTFrame_XGBoostHandler(BaseModelHandler):
         tst_feat, _, _ = self.model._to_xgboost_input(test_tensor_frame)
         val_feat, _, _ = self.model._to_xgboost_input(val_tensor_frame)
         trn_feat, _, _ = self.model._to_xgboost_input(train_tensor_frame)
-        tst_feat, analysis_feat, tst_dataset, analysis_dataset = self._split_data_in_tst_analysis(tst_feat,
-                                                                                                val_feat,
-                                                                                                trn_feat)
-        return trn_feat, tst_feat, analysis_feat, tst_dataset, analysis_dataset
+        return trn_feat, val_feat, tst_feat
     
     def predict_fn(self, X):
         """Perform inference using the XGBoost model."""

@@ -36,7 +36,7 @@ class ShapleyHandler(BaseExplanationMethodHandler):
         device = torch.device("cpu")
         feature_attribution_folder = osp.join(results_path, 
                                         "feature_attributions")
-        feature_attribution_file_path = osp.join(feature_attribution_folder, f"feature_attribution_{self.shap_variant}{'test_set' if tst_set else 'analysis_set'}_{self.args.gradient_method}_random_seed-{self.args.random_seed}.h5")
+        feature_attribution_file_path = osp.join(feature_attribution_folder, f"feature_attribution_{self.shap_variant}.h5")
 
         print("Looking for feature attributions in: ", feature_attribution_file_path)
         if osp.exists(feature_attribution_file_path) and (not self.args.force): 
@@ -78,31 +78,28 @@ class GradientShapHandler(ShapleyHandler):
         target = kwargs.get('target', None)
         return self.explainer.attribute(input_tensor, baselines=self.baseline, target=target, n_samples=25)
 
-
-class KernelShapHandler(ShapleyHandler):
+class DeepShapHandler(ShapleyHandler):
     def _get_explainer(self, predict_fn):
-        shap_predict_fn = PredictWrapper(predict_fn)
-        if isinstance(self.train_data, torch.Tensor):
-            data = self.train_data.numpy()
-            data = shap.sample(data, 100)
-        return shap.KernelExplainer(shap_predict_fn, data=data, model_output="raw")
+        return shap.DeepExplainer(predict_fn, self.train_data)
+
     def _get_shap_variant(self):
-        return "kernel_shap"
+        return "deep_shap"
+
     def explain_instance(self, **kwargs):
         input_tensor = kwargs['input']
-        if isinstance(input_tensor, torch.Tensor):
-            input_tensor = input_tensor.numpy()
-        return self.explainer.shap_values(input_tensor)
+        if isinstance(input_tensor, np.ndarray):
+            input_tensor = torch.tensor(input_tensor, dtype=torch.float32)
+        try:
+            return self.explainer.shap_values(input_tensor)
+        except AssertionError:
+            print(f"Input tensor shape: {input_tensor.shape}")
+            print(f"Input tensor has NaNs: {np.isnan(input_tensor).any()}")
+            print(f"Output model: {self.model.predict(input_tensor)}")
+            print(f"Model output has NaNs: {np.isnan(self.model.predict(input_tensor)).any()}")
+            raise
 
-class CaptumKernelShapHandler(ShapleyHandler):
-    def _get_explainer(self, predict_fn):
-        return KernelShap(predict_fn)
-    def _get_shap_variant(self):
-        return "kernel_shap"
-    def explain_instance(self, **kwargs):
-        input_tensor = kwargs['input']
-        target = kwargs.get('target', None)
-        return self.explainer.attribute(input_tensor, baselines=self.baseline, n_samples=200)
+
+
     
 class TreeShapHandler(ShapleyHandler):
     def _get_explainer(self, predict_fn):
@@ -124,6 +121,33 @@ class TreeShapHandler(ShapleyHandler):
             print(f"Output model: {self.model.predict(input_tensor)}")
             print(f"Model output has NaNs: {np.isnan(self.model.predict(input_tensor)).any()}")
             raise
+
+class KernelShapHandler(ShapleyHandler):
+    def _get_explainer(self, predict_fn):
+        shap_predict_fn = PredictWrapper(predict_fn)
+        if isinstance(self.train_data, torch.Tensor):
+            data = self.train_data.numpy()
+            data = shap.sample(data, 100)
+        return shap.KernelExplainer(shap_predict_fn, data=data, model_output="raw")
+    def _get_shap_variant(self):
+        return "kernel_shap"
+    def explain_instance(self, **kwargs):
+        input_tensor = kwargs['input']
+        if isinstance(input_tensor, torch.Tensor):
+            input_tensor = input_tensor.numpy()
+        print(self.explainer.shap_values(input_tensor))
+        return self.explainer.shap_values(input_tensor)
+
+class CaptumKernelShapHandler(ShapleyHandler):
+    def _get_explainer(self, predict_fn):
+        return KernelShap(predict_fn)
+    def _get_shap_variant(self):
+        return "kernel_shap"
+    def explain_instance(self, **kwargs):
+        input_tensor = kwargs['input']
+        target = kwargs.get('target', None)
+        return self.explainer.attribute(input_tensor, baselines=self.baseline, n_samples=200)
+
 
 
 class PredictWrapper:

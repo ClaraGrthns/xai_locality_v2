@@ -4,7 +4,11 @@ from src.explanation_methods.gradient import (IntegratedGradientsHandler,
                                               DeconvHandler,
                                               SaliencyHandler,
                                               SmoothGradHandler)
-from src.explanation_methods.shapley import (GradientShapHandler, CaptumKernelShapHandler,KernelShapHandler,  TreeShapHandler)
+from src.explanation_methods.shapley import (GradientShapHandler, 
+                                             CaptumKernelShapHandler, 
+                                                DeepShapHandler,
+                                             KernelShapHandler,  
+                                             TreeShapHandler)
 from src.explanation_methods.lime import LimeHandler
 from src.explanation_methods.lime_captum import LimeCaptumHandler
 class ExplanationMethodHandlerFactory:
@@ -19,6 +23,7 @@ class ExplanationMethodHandlerFactory:
         "lime_captum": LimeCaptumHandler,
         "gradient_shap": GradientShapHandler,
         "kernel_shap": KernelShapHandler,
+        "deep_shap": DeepShapHandler,
         "tree_shap": TreeShapHandler,  # Using KernelShapHandler for tree-based models
     }
 

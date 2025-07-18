@@ -57,7 +57,7 @@ class LimeHandler(BaseExplanationMethodHandler):
     def compute_explanations(self, results_path, predict_fn, tst_data, tst_set=True):
         args = self.args
         # Construct the explanation file name and path
-        explanation_file_name = f"explanations_{'_test_set' if tst_set else 'analysis_set'}_kernel_width-{args.kernel_width}_model_regressor-{args.model_regressor}_distance_measure-{args.distance_measure}_random_seed-{args.random_seed}"
+        explanation_file_name = f"explanations_kernel_width-{args.kernel_width}_model_regressor-{args.model_regressor}_distance_measure-{args.distance_measure}"
         explanations_dir = osp.join(results_path, "explanations")
         explanation_file_path = osp.join(explanations_dir, explanation_file_name)
         print(f"using explanation path: {explanation_file_path}")

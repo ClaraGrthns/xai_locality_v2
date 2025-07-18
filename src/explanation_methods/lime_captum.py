@@ -107,10 +107,8 @@ class LimeCaptumHandler(BaseExplanationMethodHandler):
         device = torch.device("cpu")
         feature_attribution_folder = osp.join(results_path,
                                     "feature_attribution")
-        if self.args.kernel_width == "default":
-            coefs_feature_attribution_file_path = osp.join(feature_attribution_folder, f"coefs_feature_attribution_{'test_set' if tst_set else 'analysis_set'}_{self.args.gradient_method}_random_seed-{self.args.random_seed}.h5")
-        else:
-            coefs_feature_attribution_file_path = osp.join(feature_attribution_folder, f"coefs_feature_attribution_{'test_set' if tst_set else 'analysis_set'}_{self.args.gradient_method}_kernel_width-{self.args.kernel_width}_random_seed-{self.args.random_seed}.h5")
+        
+        coefs_feature_attribution_file_path = osp.join(feature_attribution_folder, f"coefs_feature_attribution_kernel_width-{self.args.kernel_width}.h5")
 
         coefs_feature_attributions = None
         print("Looking for LIME explanations (coefficients and bias) in: ", feature_attribution_folder)

@@ -290,19 +290,18 @@ def main():
     
     
     if args.debug:
-        args.model_type = "LightGBM"
-        args.setting = "jannis"
+        args.model_type = "MLP"
+        args.setting = "adult"
         args.method = "shap"
         args.distance_measure = "euclidean"
-        args.random_seed = 999
-        args.skip_knn = True
-        args.scale = "medium"
+        args.random_seed = 42
+        args.scale = "small"
         args.use_benchmark = True
         args.task_type = "binary_classification"
         args.num_repeats = 1
-        args.epochs = 25
+        args.epochs = 40
         args.include_val = True
-        args.num_trials = 5
+        args.num_trials = 10
 
     if args.force_training:
         args.force_overwrite = True

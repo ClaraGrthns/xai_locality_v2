@@ -10,6 +10,7 @@ from src.explanation_methods.factory import ExplanationMethodHandlerFactory
 from src.config.handler import ConfigHandler
 import torch
 
+from src.dataset.tab_data import TabularDataset
 from pathlib import Path
 
 BASEDIR = str(Path(__file__).resolve().parent.parent)
@@ -37,7 +38,13 @@ def main(args):
         print("The model is a PyTorch module.")
         pytorch_total_params = sum(p.numel() for p in model.parameters())
         print(f"Total number of parameters: {pytorch_total_params}")
-    trn_feat, tst_feat, analysis_feat, tst_dataset, analysis_dataset = model_handler.load_data() # trn_feat, tst_feat, analysis_feat, tst_dataset, analysis_dataset
+    trn_feat, val_feat, whole_tst_feat = model_handler.load_data() # trn_feat, tst_feat, analysis_feat, tst_dataset, analysis_dataset
+    tst_feat, analysis_feat, tst_indices = model_handler.split_data_in_tst_analysis(
+            whole_tst_feat=whole_tst_feat, val_feat=val_feat
+        )
+    tst_dataset = TabularDataset(tst_feat)
+    analysis_dataset = TabularDataset(analysis_feat)
+
     print("Length of data set for analysis", len(analysis_feat))
     args.num_lime_features = np.min([args.num_lime_features, analysis_feat.shape[1]])
     print("Number of LIME features: ", args.num_lime_features)
@@ -57,7 +64,7 @@ def main(args):
         if args.model_type in ["LightGBM", "XGBoost", "RandomForest", "CatBoost"]:
             method = "tree_shap"
         else:
-            method = "gradient_shap" #TODO: change this to kernelshap
+            method = "deep_shap" #TODO: change this to kernelshap
     
 
     explainer_handler = ExplanationMethodHandlerFactory.get_handler(method=method)(args)
@@ -66,15 +73,12 @@ def main(args):
                                     model=predict_fn,
                                     kernel_width=args.kernel_width,)
     
-    explanations = explainer_handler.compute_explanations(results_path=results_path, 
-                                                          predict_fn=predict_fn, 
-                                                          tst_data=tst_dataset,
-                                                          tst_set=True)
     explanations_analysis_set = explainer_handler.compute_explanations(results_path=results_path, 
                                                           predict_fn=predict_fn, 
                                                           tst_data=analysis_dataset,
-                                                          tst_set=False)
-    
+                                                          tst_set=True)
+    explanation_test_set = explanations_analysis_set[:len(whole_tst_feat)][tst_indices]
+
     validate_distance_measure(args.distance_measure)
     distance_measure = args.distance_measure
     
@@ -105,7 +109,7 @@ def main(args):
                      tst_dataset = tst_dataset, 
                      tst_feat = tst_feat, 
                      analysis_feat = analysis_feat,
-                     explanations = explanations, 
+                     explanations = explanation_test_set, 
                      explanations_analysis_set = explanations_analysis_set,
                      n_nearest_neighbors = n_nearest_neighbors, 
                      tree = tree,
