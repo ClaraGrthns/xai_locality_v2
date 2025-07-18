@@ -302,6 +302,7 @@ def main():
         args.epochs = 40
         args.include_val = True
         args.num_trials = 10
+        args.chunk_size = 1
 
     if args.force_training:
         args.force_overwrite = True

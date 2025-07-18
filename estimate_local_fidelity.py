@@ -47,7 +47,6 @@ def main(args):
 
     print("Length of data set for analysis", len(analysis_feat))
     args.num_lime_features = np.min([args.num_lime_features, analysis_feat.shape[1]])
-    print("Number of LIME features: ", args.num_lime_features)
     predict_fn = model_handler.predict_fn
     
     if args.method == "lime" or args.method == args.method == "lime_captum":
@@ -64,8 +63,7 @@ def main(args):
         if args.model_type in ["LightGBM", "XGBoost", "RandomForest", "CatBoost"]:
             method = "tree_shap"
         else:
-            method = "deep_shap" #TODO: change this to kernelshap
-    
+            method = "captum_shap"
 
     explainer_handler = ExplanationMethodHandlerFactory.get_handler(method=method)(args)
     explainer_handler.set_explainer(dataset=trn_feat,

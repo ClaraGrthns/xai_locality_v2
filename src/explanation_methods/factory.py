@@ -6,7 +6,7 @@ from src.explanation_methods.gradient import (IntegratedGradientsHandler,
                                               SmoothGradHandler)
 from src.explanation_methods.shapley import (GradientShapHandler, 
                                              CaptumKernelShapHandler, 
-                                                DeepShapHandler,
+                                             CaptumShapHandler,
                                              KernelShapHandler,  
                                              TreeShapHandler)
 from src.explanation_methods.lime import LimeHandler
@@ -23,7 +23,7 @@ class ExplanationMethodHandlerFactory:
         "lime_captum": LimeCaptumHandler,
         "gradient_shap": GradientShapHandler,
         "kernel_shap": KernelShapHandler,
-        "deep_shap": DeepShapHandler,
+        "captum_shap": CaptumShapHandler,
         "tree_shap": TreeShapHandler,  # Using KernelShapHandler for tree-based models
     }
 
