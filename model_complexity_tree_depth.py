@@ -147,11 +147,8 @@ def main(args):
     print("saving results to: ", results_path)
     
     model_handler = ModelHandlerFactory.get_handler(args)
-    trn_feat, analysis_feat, tst_feat, y_trn, analysis_y, y_tst = model_handler.load_data_for_kNN()
+    trn_feat, tst_feat, y_trn, y_tst, val_feat, y_val = model_handler.load_data_for_kNN()
 
-    tst_feat = np.concatenate([analysis_feat, tst_feat], axis=0) if isinstance(tst_feat, np.ndarray) else torch.cat([analysis_feat, tst_feat], dim=0)
-    y_tst = np.concatenate([analysis_y, y_tst], axis=0) if isinstance(y_tst, np.ndarray) else torch.cat([analysis_y, y_tst], dim=0)
-    
 
     # Convert features to numpy arrays
     X_trn = trn_feat.numpy() if isinstance(trn_feat, torch.Tensor) else trn_feat

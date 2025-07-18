@@ -271,17 +271,17 @@ def main(args):
     print("saving results to: ", results_path)
     
     model_handler = ModelHandlerFactory.get_handler(args)
-    trn_feat, analysis_feat, tst_feat, y_trn, analysis_y, y_tst = model_handler.load_data_for_kNN()
-
-    tst_feat = np.concatenate([analysis_feat, tst_feat], axis=0) if isinstance(tst_feat, np.ndarray) else torch.cat([analysis_feat, tst_feat], dim=0)
-    y_tst = np.concatenate([analysis_y, y_tst], axis=0) if isinstance(y_tst, np.ndarray) else torch.cat([analysis_y, y_tst], dim=0)
-    
+    trn_feat, tst_feat, y_trn, y_tst, val_feat, y_val = model_handler.load_data_for_kNN()
 
     # Convert features to numpy arrays
     X_trn = trn_feat.numpy() if isinstance(trn_feat, torch.Tensor) else trn_feat
+    X_val = val_feat.numpy() if isinstance(val_feat, torch.Tensor) else val_feat
     X_tst = tst_feat.numpy() if isinstance(tst_feat, torch.Tensor) else tst_feat
     y_trn = y_trn.numpy() if isinstance(y_trn, torch.Tensor) else y_trn
+    y_val = y_val.numpy() if isinstance(y_val, torch.Tensor) else y_val
     y_tst = y_tst.numpy() if isinstance(y_tst, torch.Tensor) else y_tst
+
+
 
     # Check for NaNs in training data
     nan_mask_trn = np.isnan(X_trn).any(axis=1)
@@ -298,10 +298,19 @@ def main(args):
         print(f"Warning: Found {num_nan_tst} rows with NaN values in the test features. Removing these rows.")
         X_tst = X_tst[~nan_mask_tst]
         y_tst = y_tst[~nan_mask_tst]
+    
+    # Check for NaNs in validation data
+    nan_mask_val = np.isnan(X_val).any(axis=1)
+    if np.any(nan_mask_val):
+        num_nan_val = np.sum(nan_mask_val)
+        print(f"Warning: Found {num_nan_val} rows with NaN values in the validation features. Removing these rows.")
+        X_val = X_val[~nan_mask_val]
+        y_val = y_val[~nan_mask_val]
 
 
     df_loader = DataLoader(trn_feat, shuffle=False, batch_size=args.chunk_size)
     df_load_test = DataLoader(tst_feat, shuffle=False, batch_size=args.chunk_size)
+    df_load_val = DataLoader(val_feat, shuffle=False, batch_size=args.chunk_size) 
     
     ys_trn_preds_path = osp.join(results_path, "ys_trn_preds.npy")
     ys_trn_preds = compute_predictions(
@@ -310,6 +319,10 @@ def main(args):
     ys_tst_preds_path = osp.join(results_path, "ys_tst_preds.npy")
     y_tst_preds = compute_predictions(
         model_handler, tst_feat, df_load_test, ys_tst_preds_path, "test", args.debug)
+
+    ys_val_preds_path = osp.join(results_path, "ys_val_preds.npy")
+    y_val_preds = compute_predictions(
+        model_handler, val_feat, df_load_val, ys_val_preds_path, "validation", args.debug)
     
     k_nns = np.arange(args.min_k, args.max_k + 1, args.k_step)
     
