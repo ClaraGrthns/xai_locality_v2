@@ -35,12 +35,13 @@ class TorchFrameHandler(BaseModelHandler):
             fallback_path = os.path.join(model_dir, model_filename)
             print(f"Failed to load model from {self.model_path}, trying fallback path: {fallback_path}")
             best_model_cfg_dict = torch.load(fallback_path, map_location=torch.device('cpu'))
+        prefix = f"{self.args.model_type}_" if self.args.use_benchmark else ""
         self.col_names_dict = torch.load(
-            os.path.join(data_folder, f"{self.args.model_type}_"+file_name_wo_file_ending + "_col_names_dict.pt"), 
+            os.path.join(data_folder, prefix+file_name_wo_file_ending + "_col_names_dict.pt"), 
             map_location=torch.device('cpu')
         )
         self.col_stats = torch.load(
-            os.path.join(data_folder, f"{self.args.model_type}_"+file_name_wo_file_ending + "_col_stats.pt"), 
+            os.path.join(data_folder, prefix+file_name_wo_file_ending + "_col_stats.pt"), 
             map_location=torch.device('cpu')
         )
 
@@ -57,10 +58,7 @@ class TorchFrameHandler(BaseModelHandler):
 
     def load_data(self):
         trn_feat, val_feat, whole_tst_feat = load_dataframes(self.data_path)
-        tst_feat, analysis_feat, tst_dataset, analysis_dataset = self._split_data_in_tst_analysis(
-            whole_tst_feat, val_feat, trn_feat
-        )
-        return trn_feat, tst_feat, analysis_feat, tst_dataset, analysis_dataset
+        return trn_feat, val_feat, whole_tst_feat
     
     def transform(self, X):
         return partial(tensor_to_tensorframe, col_names_dict=self.col_names_dict)(X)
