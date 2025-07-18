@@ -36,7 +36,7 @@ class ShapleyHandler(BaseExplanationMethodHandler):
         device = torch.device("cpu")
         feature_attribution_folder = osp.join(results_path, 
                                         "feature_attributions")
-        feature_attribution_file_path = osp.join(feature_attribution_folder, f"feature_attribution_{self.shap_variant}{'test_set' if tst_set else 'analysis_set'}_{self.args.gradient_method}_random_seed-{self.args.random_seed}.h5")
+        feature_attribution_file_path = osp.join(feature_attribution_folder, f"feature_attribution_{self.shap_variant}.h5")
 
         print("Looking for feature attributions in: ", feature_attribution_file_path)
         if osp.exists(feature_attribution_file_path) and (not self.args.force): 
@@ -92,6 +92,7 @@ class KernelShapHandler(ShapleyHandler):
         input_tensor = kwargs['input']
         if isinstance(input_tensor, torch.Tensor):
             input_tensor = input_tensor.numpy()
+        print(self.explainer.shap_values(input_tensor))
         return self.explainer.shap_values(input_tensor)
 
 class CaptumKernelShapHandler(ShapleyHandler):
