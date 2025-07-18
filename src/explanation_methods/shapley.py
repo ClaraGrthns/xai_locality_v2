@@ -50,8 +50,11 @@ class ShapleyHandler(BaseExplanationMethodHandler):
             if not osp.exists(feature_attribution_folder):
                 os.makedirs(feature_attribution_folder)
             feature_attributions = self.compute_feature_attributions(predict_fn, tst_feat_for_expl_loader)
+            
             with h5py.File(feature_attribution_file_path, "w") as f:
                 f.create_dataset("feature_attribution", data=feature_attributions.cpu().numpy())
+        if feature_attributions.dim() == 3:
+            feature_attributions = feature_attributions.squeeze()
         return feature_attributions
     
     def compute_feature_attributions(self, predict_fn, data_loader_tst):
