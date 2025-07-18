@@ -40,7 +40,7 @@ class ShapleyHandler(BaseExplanationMethodHandler):
         feature_attribution_file_path = osp.join(feature_attribution_folder, f"feature_attribution_{self.shap_variant}.h5")
 
         print("Looking for feature attributions in: ", feature_attribution_file_path)
-        if osp.exists(feature_attribution_file_path) and (not self.args.force): 
+        if osp.exists(feature_attribution_file_path): 
             print(f"Using precomputed feature attributions from: {feature_attribution_file_path}")
             with h5py.File(feature_attribution_file_path, "r") as f:
                 feature_attributions = f["feature_attribution"][:]
@@ -91,7 +91,7 @@ class CaptumShapHandler(ShapleyHandler):
         if isinstance(input_tensor, np.ndarray):
             input_tensor = torch.tensor(input_tensor, dtype=torch.float32)
         try:
-            return self.explainer.attribute(input_tensor, baselines=self.baseline, n_samples=100)
+            return self.explainer.attribute(input_tensor, baselines=self.baseline)
         except AssertionError:
             print(f"Input tensor shape: {input_tensor.shape}")
             print(f"Input tensor has NaNs: {np.isnan(input_tensor).any()}")

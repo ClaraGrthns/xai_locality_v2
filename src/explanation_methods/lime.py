@@ -65,7 +65,7 @@ class LimeHandler(BaseExplanationMethodHandler):
         if not osp.exists(explanations_dir):
             os.makedirs(explanations_dir)
         
-        if osp.exists(explanation_file_path+".npy") and (not self.args.force):
+        if osp.exists(explanation_file_path+".npy"):
             print(f"Using precomputed explanations from: {explanation_file_path}")
             explanations = np.load(explanation_file_path+".npy", allow_pickle=True)
             print(f"{len(explanations)} explanations loaded")

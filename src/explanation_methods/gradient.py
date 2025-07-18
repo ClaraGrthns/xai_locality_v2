@@ -22,7 +22,7 @@ class GradientMethodHandler(BaseExplanationMethodHandler):
         saliency_map_file_path = osp.join(saliency_map_folder, f"saliency_map_{self.args.gradient_method}.h5")
 
         print("Looking for saliency maps in: ", saliency_map_file_path)
-        if osp.exists(saliency_map_file_path) and (not self.args.force): 
+        if osp.exists(saliency_map_file_path): 
             print(f"Using precomputed saliency maps from: {saliency_map_file_path}")
             with h5py.File(saliency_map_file_path, "r") as f:
                 saliency_maps = f["saliency_map"][:]

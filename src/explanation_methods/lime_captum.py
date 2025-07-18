@@ -113,8 +113,7 @@ class LimeCaptumHandler(BaseExplanationMethodHandler):
         coefs_feature_attributions = None
         print("Looking for LIME explanations (coefficients and bias) in: ", feature_attribution_folder)
         # Check if both files exist and force is not set
-        files_exist = osp.exists(coefs_feature_attribution_file_path)
-        should_load = files_exist and (not self.args.force or self.args.create_additional_analysis_data)
+        should_load = osp.exists(coefs_feature_attribution_file_path)
         if should_load:
             print(f"Using precomputed LIME explanations from: {feature_attribution_folder}")
             try:
