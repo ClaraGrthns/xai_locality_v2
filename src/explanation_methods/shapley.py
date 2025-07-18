@@ -78,6 +78,49 @@ class GradientShapHandler(ShapleyHandler):
         target = kwargs.get('target', None)
         return self.explainer.attribute(input_tensor, baselines=self.baseline, target=target, n_samples=25)
 
+class DeepShapHandler(ShapleyHandler):
+    def _get_explainer(self, predict_fn):
+        return shap.DeepExplainer(predict_fn, self.train_data)
+
+    def _get_shap_variant(self):
+        return "deep_shap"
+
+    def explain_instance(self, **kwargs):
+        input_tensor = kwargs['input']
+        if isinstance(input_tensor, np.ndarray):
+            input_tensor = torch.tensor(input_tensor, dtype=torch.float32)
+        try:
+            return self.explainer.shap_values(input_tensor)
+        except AssertionError:
+            print(f"Input tensor shape: {input_tensor.shape}")
+            print(f"Input tensor has NaNs: {np.isnan(input_tensor).any()}")
+            print(f"Output model: {self.model.predict(input_tensor)}")
+            print(f"Model output has NaNs: {np.isnan(self.model.predict(input_tensor)).any()}")
+            raise
+
+
+
+    
+class TreeShapHandler(ShapleyHandler):
+    def _get_explainer(self, predict_fn):
+        model =  predict_fn.__self__.model.model #model.model is actual lightgbm object= 
+        self.model = model
+        model_output = "raw" if self.args.regression else "probability"
+        return shap.TreeExplainer(model, data=self.train_data, model_output=model_output)
+    def _get_shap_variant(self):
+        return "tree_shap"
+    def explain_instance(self, **kwargs):
+        input_tensor = kwargs['input']
+        if isinstance(input_tensor, torch.Tensor):
+            input_tensor = input_tensor.numpy()
+        try:
+            return self.explainer.shap_values(input_tensor)
+        except AssertionError:
+            print(f"Input tensor shape: {input_tensor.shape}")
+            print(f"Input tensor has NaNs: {np.isnan(input_tensor).any()}")
+            print(f"Output model: {self.model.predict(input_tensor)}")
+            print(f"Model output has NaNs: {np.isnan(self.model.predict(input_tensor)).any()}")
+            raise
 
 class KernelShapHandler(ShapleyHandler):
     def _get_explainer(self, predict_fn):
@@ -104,27 +147,7 @@ class CaptumKernelShapHandler(ShapleyHandler):
         input_tensor = kwargs['input']
         target = kwargs.get('target', None)
         return self.explainer.attribute(input_tensor, baselines=self.baseline, n_samples=200)
-    
-class TreeShapHandler(ShapleyHandler):
-    def _get_explainer(self, predict_fn):
-        model =  predict_fn.__self__.model.model #model.model is actual lightgbm object= 
-        self.model = model
-        model_output = "raw" if self.args.regression else "probability"
-        return shap.TreeExplainer(model, data=self.train_data, model_output=model_output)
-    def _get_shap_variant(self):
-        return "tree_shap"
-    def explain_instance(self, **kwargs):
-        input_tensor = kwargs['input']
-        if isinstance(input_tensor, torch.Tensor):
-            input_tensor = input_tensor.numpy()
-        try:
-            return self.explainer.shap_values(input_tensor)
-        except AssertionError:
-            print(f"Input tensor shape: {input_tensor.shape}")
-            print(f"Input tensor has NaNs: {np.isnan(input_tensor).any()}")
-            print(f"Output model: {self.model.predict(input_tensor)}")
-            print(f"Model output has NaNs: {np.isnan(self.model.predict(input_tensor)).any()}")
-            raise
+
 
 
 class PredictWrapper:

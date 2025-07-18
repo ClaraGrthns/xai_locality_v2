@@ -64,7 +64,7 @@ def main(args):
         if args.model_type in ["LightGBM", "XGBoost", "RandomForest", "CatBoost"]:
             method = "tree_shap"
         else:
-            method = "gradient_shap" #TODO: change this to kernelshap
+            method = "deep_shap" #TODO: change this to kernelshap
     
 
     explainer_handler = ExplanationMethodHandlerFactory.get_handler(method=method)(args)
@@ -77,7 +77,7 @@ def main(args):
                                                           predict_fn=predict_fn, 
                                                           tst_data=analysis_dataset,
                                                           tst_set=True)
-    explanation_test_set = explanations_analysis_set[:len(tst_dataset)][tst_indices]
+    explanation_test_set = explanations_analysis_set[:len(whole_tst_feat)][tst_indices]
 
     validate_distance_measure(args.distance_measure)
     distance_measure = args.distance_measure
