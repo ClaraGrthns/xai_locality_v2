@@ -70,6 +70,10 @@ class LimeHandler(BaseExplanationMethodHandler):
             explanations = np.load(explanation_file_path+".npy", allow_pickle=True)
             print(f"{len(explanations)} explanations loaded")
         else:
+            # raise FileNotFoundError(
+            #     f"Precomputed explanations not found at {explanation_file_path}. "
+            #     "Please run the explanation computation step or provide a precomputed file."
+            # )
             tst_data = tst_data.features
             print("Precomputed explanations not found. Computing explanations for the test set...")
             explanations = self.compute_lime_explanations(self.explainer, tst_data, predict_fn, args.num_lime_features, sequential_computation=args.debug, distance_metric=args.distance_measure)
@@ -85,8 +89,9 @@ class LimeHandler(BaseExplanationMethodHandler):
     def get_experiment_setting(self, n_nearest_neighbors):
         args = self.args
         df_setting = "dataset_test"
-        df_setting += "_val" if args.include_val else ""
-        df_setting += "_trn" if args.include_trn else ""
+        # df_setting += "_val" if self.args.include_val else ""
+        # df_setting += "_trn" if self.args.include_trn else ""
+        df_setting += "_downsampled"
         experiment_setting = f"{df_setting}_kernel_width-{args.kernel_width}_model_regr-{args.model_regressor}_model_type-{args.model_type}_dist_measure-{args.distance_measure}_random_seed-{self.args.random_seed}_difference_vs_kNN"
         experiment_setting = f"kNN-1-{np.round(n_nearest_neighbors, 2)}_"+experiment_setting
         if self.args.regression:

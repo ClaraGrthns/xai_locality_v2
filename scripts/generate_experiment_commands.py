@@ -216,7 +216,7 @@ def create_command_file(output_dir, model, setting, method, distance_measure, ke
     file_name_add_on += f"_downsample_analysis" if create_additional_analysis_data else ""
     
     if method == "lime":
-        filename = f"lime_{kernel_width}{file_name_add_on}.sh"
+        filename = f"lime_{setting}_{kernel_width}{file_name_add_on}.sh"
     elif method == "gradient_methods" and gradient_method:
         if gradient_method == "IG":
             filename = f"gradient_integrated_gradient_{setting}{file_name_add_on}.sh"
@@ -558,7 +558,8 @@ def main():
                          ]#["higgs", "jannis"] # "bank_marketing"
     standard_categorical = ['albert', 'road_safety', "electricity", "adult_census_income", "adult", "bank_marketing", "mushroom"]
     standard_settings += standard_categorical
-    methods = ["gradient_methods", "lime", "shap", "lime_captum"]
+    # methods = ["gradient_methods", "lime", "shap", "lime_captum"]
+    methods = [ "lime"]
     distance_measures = ["euclidean"]
     
     # Generate all command files

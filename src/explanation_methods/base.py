@@ -39,25 +39,6 @@ class BaseExplanationMethodHandler:
     def get_experiment_setting(self):
         raise NotImplementedError
     
-    def prepare_data_for_analysis(self, dataset, df_feat):
-        args = self.args
-        indices = np.random.permutation(len(dataset))
-        tst_indices, analysis_indices = np.split(indices, [args.max_test_points])
-        print("using the following indices for testing: ", tst_indices)
-        tst_data = Subset(dataset, tst_indices)
-        analysis_data = Subset(dataset, analysis_indices)
-        print("Length of data set for analysis", len(analysis_data))
-        print("Length of test set", len(tst_data))
-        if df_feat is not None:
-            tst_feat, analysis_feat = np.split(df_feat[indices], [args.max_test_points])
-        else:
-            tst_feat, analysis_feat = tst_data.features, analysis_feat.features
-
-        batch_size = args.chunk_size if not args.method == "kernel_shap" else 1
-        data_loader_tst = DataLoader(tst_data, batch_size=batch_size, shuffle=False)
-        return tst_feat, analysis_feat, data_loader_tst, analysis_data
-    
-
     def iterate_over_data(self,
                      tst_dataset, 
                      tst_feat, 

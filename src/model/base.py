@@ -2,7 +2,7 @@
 # model/base.py
 import numpy as np
 from src.dataset.tab_data import TabularDataset
-from src.utils.misc import get_path
+from src.utils.misc import get_path, set_random_seeds
 import torch
 from sklearn.datasets import make_classification
 from sklearn.utils import shuffle
@@ -36,10 +36,11 @@ class BaseModelHandler:
         data_path = get_path(self.args.data_folder, self.args.data_path, self.args.setting)
         return data_path
     
-    def _get_split_indices(self, whole_tst_feat):
-        indices = np.random.permutation(len(whole_tst_feat))
-        tst_indices, analysis_indices = np.split(indices, [self.args.max_test_points])
-        print("using the following indices for testing: ", tst_indices)
+    def _get_split_indices(self, dataset, split_size):
+        indices = np.random.permutation(len(dataset))
+        tst_indices, analysis_indices = np.split(indices, [split_size])
+        if split_size < 500:
+            print("subsampled the following indices: ", tst_indices)
         return tst_indices, analysis_indices
     
 
@@ -137,9 +138,23 @@ class BaseModelHandler:
         return dataset
     
 
+    def downsample_data(self, whole_tst_feat, val_feat):
+        if len(whole_tst_feat)+len(val_feat) < self.args.min_analysis_points:
+            raise ValueError(f"Not enough data points for analysis. Found {len(whole_tst_feat)+len(val_feat)}, but need at least {self.args.min_analysis_points}.")
+        elif len(whole_tst_feat) < self.args.min_analysis_points:
+            set_random_seeds(1)
+            val_indices, _ = self._get_split_indices(val_feat, self.args.min_analysis_points-len(whole_tst_feat))
+            val_feat = val_feat[val_indices]
+        else:
+            set_random_seeds(1)
+            downsample_indices = self._get_split_indices(whole_tst_feat, self.args.min_analysis_points)
+            whole_tst_feat = whole_tst_feat[downsample_indices]
+        set_random_seeds(self.args.random_seed)
+        return whole_tst_feat, val_feat
+
     def split_data_in_tst_analysis(self, whole_tst_feat, val_feat):
         # Check for duplicates in whole_tst_feat
-        tst_indices, _ = self._get_split_indices(whole_tst_feat)
+        tst_indices, _ = self._get_split_indices(whole_tst_feat, self.args.max_test_points)
         analysis_feat = whole_tst_feat
         tst_feat = whole_tst_feat[tst_indices]
         if self.args.include_val:

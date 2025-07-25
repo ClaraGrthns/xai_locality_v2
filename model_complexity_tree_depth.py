@@ -81,7 +81,7 @@ def process_classification_predictions(preds, proba_output=False):
     predicted_labels = np.argmax(softmaxed, axis=-1)
     return softmaxed, predicted_labels
 
-def run_classification_analysis(args, X_trn, ys_trn_preds, y_tst_preds, y_trn, y_tst, 
+def run_classification_analysis(args, X_trn, X_tst, ys_trn_preds, y_tst_preds, y_trn, y_tst, 
                                 results_path):
     """Run KNN analysis for classification tasks."""
     proba_output = args.model_type in ["LightGBM", "XGBoost", "pt_frame_xgb", "LogReg"]
@@ -90,11 +90,21 @@ def run_classification_analysis(args, X_trn, ys_trn_preds, y_tst_preds, y_trn, y
     ys_true_softmaxed, ys_tst_predicted_labels = process_classification_predictions(y_tst_preds, proba_output)
     
     tree = DecisionTreeClassifier(random_state = args.random_seed).fit(X_trn, ys_trn_predicted_labels)
+    dt_preds_labels = tree.predict(X_tst)
+    dt_auroc, dt_accuracy, dt_precision, dt_recall, dt_f1 = binary_classification_metrics(
+        ys_tst_predicted_labels.flatten(), dt_preds_labels.flatten(), None)
+    
     print(f"Results for DecisionTreeClassifier on model predictions: depth of tree: {tree.get_depth()}")
     tree_true_labels = DecisionTreeClassifier(random_state = args.random_seed).fit(X_trn, y_trn)
+    dt_preds_labels_true_y = tree_true_labels.predict(X_tst)
+    dt_auroc_true_y, dt_accuracy_true_y, dt_precision_true_y, dt_recall_true_y, dt_f1_true_y = binary_classification_metrics(
+        y_tst.flatten(), dt_preds_labels_true_y.flatten(), None)
     print(f"Results for DecisionTreeClassifier on true labels: depth of tree: {tree_true_labels.get_depth()}")
     res_dict = {"tree_depth_preds":tree.get_depth(),
-                "tree_depth_true_y": tree_true_labels.get_depth()}
+                "tree_depth_preds_fit": np.array([dt_auroc, dt_accuracy, dt_precision, dt_recall, dt_f1]),    
+                "tree_depth_true_y": tree_true_labels.get_depth(),
+                "tree_depth_true_y_fit": np.array([dt_auroc_true_y, dt_accuracy_true_y, dt_precision_true_y, dt_recall_true_y, dt_f1_true_y])}
+    
     np.savez(osp.join(results_path,  f"model_complexity_depth_{args.model_type}_{args.setting}"),
              **res_dict)
 
@@ -202,12 +212,12 @@ def main(args):
     
     if args.regression:
         run_regression_analysis(
-            args, X_trn, ys_trn_preds, y_tst_preds, y_trn, y_tst,
+            args, X_trn, X_tst, ys_trn_preds, y_tst_preds, y_trn, y_tst,
             results_path, 
         )
     else:
         run_classification_analysis(
-            args, X_trn, ys_trn_preds, y_tst_preds, y_trn, y_tst,
+            args, X_trn, X_tst, ys_trn_preds, y_tst_preds, y_trn, y_tst,
             results_path, 
         )
     

@@ -22,9 +22,10 @@ class ShapleyHandler(BaseExplanationMethodHandler):
 
     def get_experiment_setting(self, n_nearest_neighbors):
         df_setting = "dataset_test"
-        df_setting += "_val" if self.args.include_val else ""
-        df_setting += "_trn" if self.args.include_trn else ""
-        setting = f"{self.args.method}-{self.shap_variant}-{df_setting}_model_type-{self.args.model_type}_dist_measure-{self.args.distance_measure}_random_seed-{self.args.random_seed}_difference_vs_kNN"
+        # df_setting += "_val" if self.args.include_val else ""
+        # df_setting += "_trn" if self.args.include_trn else ""
+        df_setting += "_downsampled"
+        setting = f"{self.args.method}-{self.shap_variant}_{df_setting}_model_type-{self.args.model_type}_dist_measure-{self.args.distance_measure}_random_seed-{self.args.random_seed}_difference_vs_kNN"
         setting = f"kNN-1-{n_nearest_neighbors}_"+setting   
         if self.args.regression:
             setting = setting + "_regression" 
@@ -46,6 +47,10 @@ class ShapleyHandler(BaseExplanationMethodHandler):
                 feature_attributions = f["feature_attribution"][:]
             feature_attributions = torch.tensor(feature_attributions).float().to(device)
         else:
+            # raise FileNotFoundError(
+            #     f"Precomputed explanations not found at {feature_attribution_file_path}. "
+            #     "Please run the explanation computation step or provide a precomputed file."
+            # )
             print("Precomputed feature attributions not found. Computing feature attributions for the test set...")
             if not osp.exists(feature_attribution_folder):
                 os.makedirs(feature_attribution_folder)

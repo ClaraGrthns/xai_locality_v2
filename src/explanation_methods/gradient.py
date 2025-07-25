@@ -38,8 +38,9 @@ class GradientMethodHandler(BaseExplanationMethodHandler):
     
     def get_experiment_setting(self, n_nearest_neighbors):
         df_setting = "dataset_test"
-        df_setting += "_val" if self.args.include_val else ""
-        df_setting += "_trn" if self.args.include_trn else ""
+        # df_setting += "_val" if self.args.include_val else ""
+        # df_setting += "_trn" if self.args.include_trn else ""
+        df_setting += "_downsampled"
         setting = f"{df_setting}_grad_method-{self.args.gradient_method}_model_type-{self.args.model_type}_dist_measure-{self.args.distance_measure}_random_seed-{self.args.random_seed}_difference_vs_kNN"
         setting = f"kNN-1-{np.round(n_nearest_neighbors, 2)}_"+ setting
         if self.args.regression:

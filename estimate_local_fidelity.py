@@ -39,6 +39,9 @@ def main(args):
         pytorch_total_params = sum(p.numel() for p in model.parameters())
         print(f"Total number of parameters: {pytorch_total_params}")
     trn_feat, val_feat, whole_tst_feat = model_handler.load_data() # trn_feat, tst_feat, analysis_feat, tst_dataset, analysis_dataset
+    
+    whole_tst_feat, val_feat = model_handler.downsample_data(whole_tst_feat, val_feat)
+    
     tst_feat, analysis_feat, tst_indices = model_handler.split_data_in_tst_analysis(
             whole_tst_feat=whole_tst_feat, val_feat=val_feat
         )

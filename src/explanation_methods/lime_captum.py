@@ -159,8 +159,10 @@ class LimeCaptumHandler(BaseExplanationMethodHandler):
 
     def get_experiment_setting(self, n_nearest_neighbors):
         df_setting = "dataset_test"
-        df_setting += "_val" if self.args.include_val else ""
-        df_setting += "_trn" if self.args.include_trn else ""
+        # df_setting += "_val" if self.args.include_val else ""
+        # df_setting += "_trn" if self.args.include_trn else ""
+        df_setting += "_downsampled"
+
         if self.args.kernel_width == "default":
             setting = f"{self.args.method}_{df_setting}_model_type-{self.args.model_type}_dist_measure-{self.args.distance_measure}_random_seed-{self.args.random_seed}_difference_vs_kNN"
         else:

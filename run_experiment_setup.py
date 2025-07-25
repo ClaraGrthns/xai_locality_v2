@@ -100,8 +100,11 @@ def parse_args():
     parser.add_argument("--min_k", type=int, default=2, help="Minimum k for KNN")
     parser.add_argument("--max_k", type=int, default=30, help="Maximum k for KNN")
     parser.add_argument("--k_step", type=int, default=2, help="Step size for k in KNN")
+
+    # Experiment parameters
     parser.add_argument("--chunk_size", type=int, default=200, help="Chunk size for processing")
     parser.add_argument("--max_test_points", type=int, default=200, help="Maximum number of test points")
+    parser.add_argument("--min_analysis_points", type=int, default=2000, help="Minimum number of analysis points")
     parser.add_argument("--force_overwrite", action="store_true", help="Force overwrite existing results")
     
     # Explanation method parameters
