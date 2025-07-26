@@ -19,7 +19,7 @@ class GradientMethodHandler(BaseExplanationMethodHandler):
         saliency_map_folder = osp.join(results_path, 
                                         "saliency_maps")
         
-        saliency_map_file_path = osp.join(saliency_map_folder, f"saliency_map_{self.args.gradient_method}.h5")
+        saliency_map_file_path = osp.join(saliency_map_folder, f"downsampled-{self.args.min_analysis_points}_test_saliency_map_{self.args.gradient_method}.h5")
 
         print("Looking for saliency maps in: ", saliency_map_file_path)
         if osp.exists(saliency_map_file_path): 
@@ -40,7 +40,7 @@ class GradientMethodHandler(BaseExplanationMethodHandler):
         df_setting = "dataset_test"
         # df_setting += "_val" if self.args.include_val else ""
         # df_setting += "_trn" if self.args.include_trn else ""
-        df_setting += "_downsampled"
+        df_setting += f"_downsampled-{self.args.min_analysis_points}"
         setting = f"{df_setting}_grad_method-{self.args.gradient_method}_model_type-{self.args.model_type}_dist_measure-{self.args.distance_measure}_random_seed-{self.args.random_seed}_difference_vs_kNN"
         setting = f"kNN-1-{np.round(n_nearest_neighbors, 2)}_"+ setting
         if self.args.regression:

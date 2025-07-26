@@ -297,7 +297,7 @@ def main():
         args.setting = "california"
         args.method = "shap"
         args.distance_measure = "euclidean"
-        args.random_seed = 21
+        args.random_seed = 42
         args.scale = "small"
         args.use_benchmark = True
         args.task_type = "binary_classification"

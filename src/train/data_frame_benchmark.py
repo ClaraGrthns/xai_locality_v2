@@ -321,7 +321,8 @@ def prepare_data_and_models(args):
             os.path.join(args.data_folder, f"{dataset_name}_normalized_data_col_names_dict.pt"))
     torch.save(col_stats, 
             os.path.join(args.data_folder,f"{dataset_name}_normalized_data_col_stats.pt"))
-    
+
+
     normalized_data = {
         'train': train_tensor_frame,
         'val': val_tensor_frame,

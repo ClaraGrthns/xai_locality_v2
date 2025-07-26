@@ -39,8 +39,6 @@ class BaseModelHandler:
     def _get_split_indices(self, dataset, split_size):
         indices = np.random.permutation(len(dataset))
         tst_indices, analysis_indices = np.split(indices, [split_size])
-        if split_size < 500:
-            print("subsampled the following indices: ", tst_indices)
         return tst_indices, analysis_indices
     
 
@@ -144,10 +142,12 @@ class BaseModelHandler:
         elif len(whole_tst_feat) < self.args.min_analysis_points:
             set_random_seeds(1)
             val_indices, _ = self._get_split_indices(val_feat, self.args.min_analysis_points-len(whole_tst_feat))
+            print(f"Downsampling validation set to {val_indices[:200]}.")
             val_feat = val_feat[val_indices]
         else:
             set_random_seeds(1)
-            downsample_indices = self._get_split_indices(whole_tst_feat, self.args.min_analysis_points)
+            downsample_indices, _ = self._get_split_indices(whole_tst_feat, self.args.min_analysis_points)
+            print(f"Downsampling test set to {downsample_indices[:200]}.")
             whole_tst_feat = whole_tst_feat[downsample_indices]
         set_random_seeds(self.args.random_seed)
         return whole_tst_feat, val_feat
@@ -157,7 +157,7 @@ class BaseModelHandler:
         tst_indices, _ = self._get_split_indices(whole_tst_feat, self.args.max_test_points)
         analysis_feat = whole_tst_feat
         tst_feat = whole_tst_feat[tst_indices]
-        if self.args.include_val:
+        if len(whole_tst_feat) < self.args.min_analysis_points:
             if isinstance(val_feat, np.ndarray):
                 analysis_feat = np.concatenate([analysis_feat, val_feat], axis=0)
             else:

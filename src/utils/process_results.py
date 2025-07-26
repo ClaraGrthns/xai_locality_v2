@@ -17,9 +17,9 @@ def random_seed_condition(file, random_seed):
                 return f"random_seed" in file
         return f"random_seed-42" in file
 
-def get_condition(mode:str, random_seed=None):
+def get_condition(mode:str, random_seed=None, downsample_size:int=2000):
     if mode == "main_analysis":
-        condition = lambda x: (x.startswith("kNN") and x.endswith(".npz")) and random_seed_condition(x, random_seed)
+        condition = lambda x: (x.startswith("kNN") and x.endswith(".npz")) and random_seed_condition(x, random_seed) and f"downsampled-{downsample_size}_" in x
     elif mode == "tree_depth":
         condition = lambda x: "depth" in x and x.endswith(".npz")
     elif mode == "accuracy_surrogate":
@@ -43,6 +43,7 @@ def get_results_files_dict(explanation_method: str,
                         datasets: list[str], 
                         mode_results_path: str,
                         mode_file: str,
+                        downsample_size:int=2000, 
                         random_seed=42) -> dict:
     from pathlib import Path
     results_folder = get_results_path(mode=mode_results_path, explanation_method=explanation_method)
@@ -57,7 +58,7 @@ def get_results_files_dict(explanation_method: str,
             path_to_results = os.path.join(results_folder, model, dataset)
             if not os.path.exists(path_to_results):
                 continue
-            condition = get_condition(mode=mode_file, random_seed=random_seed)
+            condition = get_condition(mode=mode_file, random_seed=random_seed, downsample_size=downsample_size)
             files = [os.path.join(path_to_results, f) for f in os.listdir(path_to_results) if condition(f)]
             if len(files) == 0:
                 print(f"Warning: no files found for {model} on {dataset}")
@@ -69,12 +70,14 @@ def get_results_files_dict(explanation_method: str,
 def get_main_analysis_results(explanation_method: str,
                         models: list[str], 
                         datasets: list[str], 
+                        downsample_size:int=2000,
                         random_seed=42) -> dict:
     return get_results_files_dict(explanation_method=explanation_method,
                                 models=models, 
                                 datasets=datasets, 
                                 mode_results_path="main_analysis",
                                 mode_file="main_analysis",
+                                downsample_size=downsample_size,
                                 random_seed=random_seed)
 
 def get_model_complexity_accuracy_results(models: list[str], 
@@ -113,23 +116,22 @@ def get_distances_mean_std(fp_main_analysis):
     std_knn_mean_distances = np.array(knn_mean_distances).std(axis=0)
     return (mean_l2_mean_distances, std_l2_mean_distances), (mean_knn_mean_distances, std_knn_mean_distances)
 
-def get_best_model_complexity_accuracy(fp_complexity_accuracy):
+def get_model_complexity_accuracy(fp_complexity_accuracy):
     if isinstance(fp_complexity_accuracy, list):
         fp_complexity_accuracy = fp_complexity_accuracy[0]
     res = np.load(fp_complexity_accuracy, allow_pickle=True)
-    knn_res = res['best_knn_on_preds'][0]
-    lr_res = res['logistic_regression_on_preds'][1]
     dt_res = res['decision_tree_on_preds'][1]
-    return np.nanmax([knn_res, lr_res, dt_res])
+    return dt_res
 
 def get_model_complexity_depth(fp_complexity_depth):
     if isinstance(fp_complexity_depth, list):
         fp_complexity_depth = fp_complexity_depth[0]
     res = np.load(fp_complexity_depth, allow_pickle=True)
-    return res['tree_depth_preds']
+    accuracy = res.get('tree_depth_preds_fit', 0)[1]
+    return res['tree_depth_preds'], accuracy
 
 
-def get_x_y_points(res_dict, res_dict_accuracy, res_dict_depth):
+def get_x_y_points(res_dict, res_dict_accuracy, res_dict_depth, accuracy_depth_threshold=0):
     """
     Get x and y points for plotting the complexity vs closeness graph.
     Args:
@@ -165,6 +167,16 @@ def get_x_y_points(res_dict, res_dict_accuracy, res_dict_depth):
                 continue   
             
             (y_mean, y_std), (dist_knn_mean, dist_knn_std) = get_distances_mean_std(fp_main_analysis)
+            
+            ## Get complexity results (x axis)
+            best_accuracy = get_model_complexity_accuracy(fp_complexity_accuracy)
+            fp_complexity_error = 1 - best_accuracy
+            complexity_results_accuracy.append(fp_complexity_error)
+            tree_depth, accuracy = get_model_complexity_depth(fp_complexity_depth)
+            if accuracy < accuracy_depth_threshold:
+                print(f"Warning: accuracy {accuracy} below threshold {accuracy_depth_threshold} for {model} on {dataset}. Skipping.")
+                tree_depth = np.nan
+
             main_results_means["l2_distance"].append(y_mean["l2_distance"])
             main_results_stds["l2_distance"].append(y_std["l2_distance"])
             main_results_means["l1_distance"].append(y_mean["l1_distance"])
@@ -174,13 +186,6 @@ def get_x_y_points(res_dict, res_dict_accuracy, res_dict_depth):
 
             main_results_dist_means.append(dist_knn_mean)
             main_results_dist_stds.append(dist_knn_std)
-
-            ## Get complexity results (x axis)
-           
-            best_accuracy = get_best_model_complexity_accuracy(fp_complexity_accuracy)
-            fp_complexity_error = 1 - best_accuracy
-            complexity_results_accuracy.append(fp_complexity_error)
-            tree_depth = get_model_complexity_depth(fp_complexity_depth)
             complexity_results_depth.append(tree_depth)
             
             model_data_list_for_plotting.append((model, dataset))

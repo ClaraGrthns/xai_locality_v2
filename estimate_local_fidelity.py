@@ -78,6 +78,12 @@ def main(args):
                                                           predict_fn=predict_fn, 
                                                           tst_data=analysis_dataset,
                                                           tst_set=True)
+    if isinstance(explanations_analysis_set, torch.Tensor):
+        #normalize along the feature axis
+        explanations_analysis_set = explanations_analysis_set / torch.norm(explanations_analysis_set, dim=1, keepdim=True)
+    elif isinstance(explanations_analysis_set, np.ndarray):
+        explanations_analysis_set = explanations_analysis_set / np.linalg.norm(explanations_analysis_set, axis=1, keepdims=True)
+
     explanation_test_set = explanations_analysis_set[:len(whole_tst_feat)][tst_indices]
 
     validate_distance_measure(args.distance_measure)

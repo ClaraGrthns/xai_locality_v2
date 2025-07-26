@@ -53,7 +53,7 @@ class BaseExplanationMethodHandler:
         """
         Base method for iterating over data to compute and store metrics.
         """
-        chunk_size = int(np.min((self.args.chunk_size, len(tst_dataset))))
+        chunk_size = 200 #int(np.min((self.args.chunk_size, len(tst_dataset))))
         tst_dataset_loader = DataLoader(tst_dataset, batch_size=chunk_size, shuffle=False)
         for i, batch in enumerate(tst_dataset_loader):
             start = time.time()

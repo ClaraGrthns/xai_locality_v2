@@ -57,7 +57,7 @@ class LimeHandler(BaseExplanationMethodHandler):
     def compute_explanations(self, results_path, predict_fn, tst_data, tst_set=True):
         args = self.args
         # Construct the explanation file name and path
-        explanation_file_name = f"explanations_kernel_width-{args.kernel_width}_model_regressor-{args.model_regressor}_distance_measure-{args.distance_measure}"
+        explanation_file_name = f"downsampled-{self.args.min_analysis_points}_test_explanations_kernel_width-{args.kernel_width}_model_regressor-{args.model_regressor}_distance_measure-{args.distance_measure}"
         explanations_dir = osp.join(results_path, "explanations")
         explanation_file_path = osp.join(explanations_dir, explanation_file_name)
         print(f"using explanation path: {explanation_file_path}")
@@ -91,7 +91,7 @@ class LimeHandler(BaseExplanationMethodHandler):
         df_setting = "dataset_test"
         # df_setting += "_val" if self.args.include_val else ""
         # df_setting += "_trn" if self.args.include_trn else ""
-        df_setting += "_downsampled"
+        df_setting += f"_downsampled-{self.args.min_analysis_points}"
         experiment_setting = f"{df_setting}_kernel_width-{args.kernel_width}_model_regr-{args.model_regressor}_model_type-{args.model_type}_dist_measure-{args.distance_measure}_random_seed-{self.args.random_seed}_difference_vs_kNN"
         experiment_setting = f"kNN-1-{np.round(n_nearest_neighbors, 2)}_"+experiment_setting
         if self.args.regression:

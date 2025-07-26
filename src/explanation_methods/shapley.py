@@ -24,7 +24,7 @@ class ShapleyHandler(BaseExplanationMethodHandler):
         df_setting = "dataset_test"
         # df_setting += "_val" if self.args.include_val else ""
         # df_setting += "_trn" if self.args.include_trn else ""
-        df_setting += "_downsampled"
+        df_setting += f"_downsampled-{self.args.min_analysis_points}"
         setting = f"{self.args.method}-{self.shap_variant}_{df_setting}_model_type-{self.args.model_type}_dist_measure-{self.args.distance_measure}_random_seed-{self.args.random_seed}_difference_vs_kNN"
         setting = f"kNN-1-{n_nearest_neighbors}_"+setting   
         if self.args.regression:
@@ -38,7 +38,7 @@ class ShapleyHandler(BaseExplanationMethodHandler):
         device = torch.device("cpu")
         feature_attribution_folder = osp.join(results_path, 
                                         "feature_attributions")
-        feature_attribution_file_path = osp.join(feature_attribution_folder, f"feature_attribution_{self.shap_variant}.h5")
+        feature_attribution_file_path = osp.join(feature_attribution_folder, f"downsampled-{self.args.min_analysis_points}_test_feature_attribution_{self.shap_variant}.h5")
 
         print("Looking for feature attributions in: ", feature_attribution_file_path)
         if osp.exists(feature_attribution_file_path): 

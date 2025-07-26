@@ -108,7 +108,7 @@ class LimeCaptumHandler(BaseExplanationMethodHandler):
         feature_attribution_folder = osp.join(results_path,
                                     "feature_attribution")
         
-        coefs_feature_attribution_file_path = osp.join(feature_attribution_folder, f"coefs_feature_attribution_kernel_width-{self.args.kernel_width}.h5")
+        coefs_feature_attribution_file_path = osp.join(feature_attribution_folder, f"downsampled-{self.args.min_analysis_points}_test_coefs_feature_attribution_kernel_width-{self.args.kernel_width}.h5")
 
         coefs_feature_attributions = None
         print("Looking for LIME explanations (coefficients and bias) in: ", feature_attribution_folder)
@@ -161,7 +161,7 @@ class LimeCaptumHandler(BaseExplanationMethodHandler):
         df_setting = "dataset_test"
         # df_setting += "_val" if self.args.include_val else ""
         # df_setting += "_trn" if self.args.include_trn else ""
-        df_setting += "_downsampled"
+        df_setting += f"_downsampled-{self.args.min_analysis_points}"
 
         if self.args.kernel_width == "default":
             setting = f"{self.args.method}_{df_setting}_model_type-{self.args.model_type}_dist_measure-{self.args.distance_measure}_random_seed-{self.args.random_seed}_difference_vs_kNN"
